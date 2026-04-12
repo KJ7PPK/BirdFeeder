@@ -1,5 +1,5 @@
 # Birdfeeder
-I wanted a way to get audio to BirdNET-Go from low-budget devices spread across my property. This script turns a Pi into an appliance for exactly that purpose. I found that the actual capture and stream function leaves plenty of headroom even on a Zero 2W, so since BirdNET-Go can really only tell me if the RTSP stream is up or down, I implemented a simple busybox function to publish a "health" overview page on port 8080. Eventually, I plan to migrate away from the static page generation and publish to MQTT or otherwise integrate into Home Assistant for monitoring the node(s).
+I wanted a way to get audio to BirdNET-Go (https://github.com/tphakala/birdnet-go) from low-budget devices spread across my property. This script turns a Pi into an appliance for exactly that purpose. I found that the actual capture and stream function leaves plenty of headroom even on a Zero 2W, so since BirdNET-Go can really only tell me if the RTSP stream is up or down, I implemented a simple busybox function to publish a "health" overview page on port 8080. Eventually, I plan to migrate away from the static page generation and publish to MQTT or otherwise integrate into Home Assistant for monitoring the node(s).
 
 # My setup:
 1. Raspberry Pi Zero 2W
