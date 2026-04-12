@@ -1,0 +1,16 @@
+[Unit]
+Description=Birdfeeder audio RTSP streamer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+ExecStart=/usr/local/bin/birdfeeder-audio.sh
+
+Restart=on-failure
+RestartSec=2
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target
