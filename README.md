@@ -15,6 +15,10 @@ I wanted a way to get audio to BirdNET-Go (https://github.com/tphakala/birdnet-g
 - Optional: applies gain to audio before encoding.
 - Optional: generates a static html system health page served on port 8080.
 
+# SETUP BASICS FOR PI ZERO W
+1. Put birdfeeder-audio.service in /etc/systemd/system/
+2. Put birdfeeder-audio.service in /usr/local/bin/
+
 # AUDIO CONFIGURATION OPTIONS
 1. DEVICE: USB mic / sound card hardware ID
 2. RATE: Audio capture frequency (set to 48khz as that's my sound card's native)
@@ -28,6 +32,11 @@ I wanted a way to get audio to BirdNET-Go (https://github.com/tphakala/birdnet-g
 1. STATUS_ENABLE: 1 turns on this functionality, 0 disables it.
 2. STATUS_DIR: This is where we're writing the health information to periodically.
 3. STATUS_INTERVAL: This is how frequently we're updating the health data file.
+
+# TROUBLESHOOTING BASICS
+1. Basically any adjustments you make to the .sh, just reboot the Pi instead of restarting the service.
+2. systemctl status birdfeeder-audio.service should tell you what's going on if there are any errors.
+
 
 # Future Plans
 I still need to evaluate power usage and heat tolerance to build a more rugged enclosure, or potentially even migrate away from the Pi Zero hardware. I also need to evaluate the audio quality with a better microphone setup (preferably not USB), but a bird or a cat literally stole my RODE mic a while back. I'm sure there's more.
