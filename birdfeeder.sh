@@ -5,24 +5,29 @@ set -euo pipefail
 # This script publishes audio from a USB microphone to an RTSP server.
 # Built for use with birdnet-go and mediamtx on a Pi Zero 2W.
 # Optional static page health monitoring added 4/12/2026.
+# revised 5/2/2026 for cleaner audio pipeline with usb mic
 # Chris Hawthorne, KJ7PPK
 #####################
 
 ### CONFIGURATION ###
 # set to usb mic device id and sample rate
-DEVICE="plughw:0,0"
-RATE="48000"
-# streaming bitrate
-BITRATE="128k"
+DEVICE="hw:0,0"
+# set to usb mic native bitrate, find with lsusb or something idk
+SAMPLE_RATE="44100"
+# actual bitrate we stream to rtsp
+BITRATE="48k"
 # RTSP publishing url
 URL="rtsp://172.26.16.22:8554/birdfeeder2"
-# buffer size, 4096 works for pi zero2w
-THREAD_QUEUE_SIZE="4096"
+# queue size / buffer for ffmpeg.. idk
+FFMPEG_THREAD_QUEUE_SIZE="32768"
 # optional gain, so live stream is audible in birdnet before processing
-GAIN_DB="15"
-# prevent audio clipping just in case, reduce gain if this happens a lot
-LIMITER_LEVEL="0.95"
+GAIN_DB="5"
+# the native channels for your usb device (1 = mono, 2 = stereo)
+DEVICE_CHANNELS=2
+# downmix to mono by setting this to 1
+STREAM_CHANNELS=2
 
+################### HEALTH MONITORING WEBPAGE ####################
 # health monitor generates static html page
 STATUS_ENABLE=1
 # directory for health file
@@ -51,6 +56,7 @@ write_status() {
     TEMP_C=${TEMP_RAW%.*}
     FFMPEG_PID=$(pgrep -x ffmpeg)
     FFMPEG_STATE="STOPPED"
+        FFMPEG_STATE="STOPPED"
     FFMPEG_UPTIME="-"
 if [ -n "$FFMPEG_PID" ]; then
     FFMPEG_STATE="RUNNING"
@@ -106,15 +112,12 @@ if [ "$STATUS_ENABLE" -eq 1 ]; then
     ) &
     busybox httpd -f -p 8080 -h "$STATUS_DIR" &
 fi
-
 ### START STREAM
-AUDIO_FILTER="volume=${GAIN_DB}dB,alimiter=limit=${LIMITER_LEVEL}"
 exec ffmpeg -hide_banner -loglevel warning -nostdin \
--thread_queue_size "$THREAD_QUEUE_SIZE" \
--f alsa -ac 1 -ar "$RATE" -i "$DEVICE" \
--c:a aac -b:a "$BITRATE" \
--ac 1 \
--af "$AUDIO_FILTER" \
+-thread_queue_size "$FFMPEG_THREAD_QUEUE_SIZE" \
+-f alsa -ac "$DEVICE_CHANNELS" -ar "$SAMPLE_RATE" -i "$DEVICE" \
+-ac "$STREAM_CHANNELS" \
+-af "volume=${GAIN_DB}dB" \
+-c:a libopus -b:a "$BITRATE" \
 -f rtsp -rtsp_transport tcp \
--muxdelay 0 -muxpreload 0 \
 "$URL"
