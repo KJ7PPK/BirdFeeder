@@ -20,7 +20,7 @@ I wanted a way to get audio to BirdNET-Go (https://github.com/tphakala/birdnet-g
 2. Put birdfeeder-audio.service in /usr/local/bin/
 
 # AUDIO CONFIGURATION OPTIONS
-1. DEVICE: USB mic / sound card hardware ID
+1. DEVICE: USB mic / sound card hardware ID (find via via arecord -l, mine tends to be 0,0)
 2. RATE: Audio capture frequency (set to 48khz as that's my sound card's native)
 3. BITRATE: Streaming bitrate, 128k seems to work just fine but this can be dropped down as needed, or increased with higher quality audio input.
 4. URL: RTSP publishing path
