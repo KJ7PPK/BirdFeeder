@@ -1,7 +1,7 @@
-# The OG - Pi Zero / 2 W RTSP Streaming Script
-This script turns a Pi into an appliance for exactly that purpose. I found that the actual capture and stream function leaves plenty of headroom even on a Zero 2W, so since BirdNET-Go can really only tell me if the RTSP stream is up or down, I implemented a simple busybox function to publish a "health" overview page on port 8080. Eventually, I plan to migrate away from the static page generation and publish to MQTT or otherwise integrate into Home Assistant for monitoring the node(s).
+# The OG - Pi Zero / 2 W RTSP Streaming & Health Monitor Script
+**Note:** The audio quality I got from USB mics, USB sound cards with analog lav mics, and analog lav mics with a separate ADC is marginal at best - the amount of noise the hardware introduces is significant, even compared to the low bitrate, low sample-rate audio I get from my POE surveillance cameras.
 
-Note: The audio quality I got from USB mics, USB sound cards with analog lav mics, and analog lav mics with a separate ADC is marginal at best - the amount of noise the hardware introduces is significant, even compared to the low bitrate, low sample-rate audio I get from my POE surveillance cameras.
+This script turns a Pi into an appliance for feeding audio to an RTSP server (MediaMTX in my case) for consumption by BirdNET-Go. I found that the actual capture and stream function leaves plenty of headroom even on a Zero 2W, so since BirdNET-Go can really only tell me if the RTSP stream is up or down, I implemented a simple busybox function to publish a "health" overview page on port 8080. Eventually, I plan to migrate away from the static page generation and publish to MQTT or otherwise integrate into Home Assistant for monitoring the node(s).
 
 # My setup:
 1. Raspberry Pi Zero 2W
@@ -38,6 +38,3 @@ Note: The audio quality I got from USB mics, USB sound cards with analog lav mic
 # TROUBLESHOOTING BASICS
 1. Basically any adjustments you make to the .sh, just reboot the Pi instead of restarting the service.
 2. systemctl status birdfeeder-audio.service should tell you what's going on if there are any errors.
-
-# Future Plans
-I still need to evaluate power usage and heat tolerance to build a more rugged enclosure, or potentially even migrate away from the Pi Zero hardware. I also need to evaluate the audio quality with a better microphone setup (preferably not USB), but a bird or a cat literally stole my RODE mic a while back. I'm sure there's more.
