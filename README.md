@@ -1,4 +1,4 @@
-# Birdfeeder RTSP Tools (Turning E-Waste devices into BirdNET-Go audio sources!) 
+# Turning legacy Android phones into RTSP/BirdNET-Go audio sources! 
 Initially, this Repo served to document the method I used for configuring a PiZ2W to feed MediaMTX for consumption by BirdNET-Go (https://github.com/tphakala/birdnet-go). I have been unhappy with the audio quality from Pi devices after trying half a dozen microphone configurations. I will leave the original Pi script up (it still works), but I'm pivoting focus from RPI to legacy Android phones, which I've found make EXCELLENT streaming appliances for audio (and video, but not implementing that quite yet).
 
 # JULY 2026 UPDATE
