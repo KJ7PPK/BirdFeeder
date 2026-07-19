@@ -1,5 +1,5 @@
 # Turn e-waste Android phones into RTSP audio sources - WIP
-created for use with BirdNET-Go ( 
+**created for use with BirdNET-Go (https://github.com/tphakala/birdnet-go)**
 
 BirdNET-GO's RTSP support has continued getting better and better, and BirdFeeder is the solution for deploying multiple RTSP sources without dipping into hardware mods. This Repo shifted from Pi-specific to Android as phones produce cleaner audio, hold stronger connections, don't require assembly/soldering/enclosures, and the cost is lower. BirdFeeder.sh does the heavy lifting with a handful of dependencies and tweaks required. Handles reboots, crashes, etc. and offers configurable settings for RTSP publish path, codec, bitrate, sleep schedule, etc. along with a lighttpd-based health status page. Any device-specific steps/tweaks/tips will be outlined in subdirectories as I discover them. Documentation will be released after validation with latest script revision on a second wiped device. Currently field-testing with latest BirdNET-Go on a Pixel 3 XL, carrier-locked, fully headless. 
 
