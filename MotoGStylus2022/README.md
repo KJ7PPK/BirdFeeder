@@ -1,1 +1,2 @@
 **DOCUMENTATION TO COME**
+Some notes though - this relies on pulseaudio and Termux being set as the launcher. It's a little delicate and I've found that I have to do things differently in more modern (still old) Android versions. For the Moto G, Termux is the launcher -- .bashrc gets the script running. For all phones in the future, I'll use Termux-Boot to initialize the script. If I rebuild this Moto G at some point, I'll complete full documentation for setup.
