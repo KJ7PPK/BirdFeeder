@@ -6,17 +6,16 @@
 # off to chase hummingbirds - kj7ppk, chris hawthorne
 # ============================================================
 CODEC=opus            # opus | aac | pcm
-BITRATE=64k            # used for opus/aac only
-CHANNELS=1             # 2 is stereo. Note: Some codecs like OPUS will tell BNG it is a stereo stream. You'll see both channels are identical, so pick whichever inside of BNG's interface.
-GAIN_DB=0              # ffmpeg volume filter, in dB. Recommend doing gain adjustments in BirdNET-Go, but the option is here.
-NODE_LABEL="Location"  # ie "Backyard", "Shop Roof" — shown on status page
+BITRATE=64k           # used for opus/aac only
+CHANNELS=1            # 1 for mono. Opus will tell BirdNET-Go it's a stereo stream in mono, two identical channels so either is fine.
+GAIN_DB=0             # ffmpeg volume filter, in dB. Recommend doing gain adjustments in BirdNET-Go, but the option is here.
+NODE_LABEL="Location" # ie "Backyard", "Shop Roof" — shown on status page
 RTSP_HOST=1.1.1.1     # update to your RTSP server IP, i.e. MediaMTX
 RTSP_PORT=8554        # default rtsp port is 8554 but this can be changed as needed
-RTSP_PATH=pixel3xl    # the path we're publishing to after rtsp://ip:port/)
+RTSP_PATH=birdfeeder  # the path we're publishing to after rtsp://ip:port/)
 SLEEP_ENABLED=0       # 1 = pause stream during quiet hours (keeps WiFi/SSH/status page up)
 SLEEP_START=23:00     # note: this uses the device's time, so configure accordingly.
 SLEEP_END=06:00
-MAX_LOG_BYTES=5242880  # 5MB — log rotates (archives to .old) once it exceeds this
 # ============================================================
 
 # --- 1. EXIT HANDLING ---
@@ -49,17 +48,8 @@ is_sleep_time() {
   fi
 }
 
-rotate_log_if_needed() {
-  local size=$(wc -c < ~/birdfeeder.log 2>/dev/null)
-  if [ -n "$size" ] && [ "$size" -gt "$MAX_LOG_BYTES" ]; then
-    mv ~/birdfeeder.log ~/birdfeeder.log.old
-    echo ">>> [$(date +%T)] Log rotated (exceeded $((MAX_LOG_BYTES / 1024 / 1024))MB). Previous log at birdfeeder.log.old" > ~/birdfeeder.log
-  fi
-}
-
 # --- 3. STATUS PAGE GENERATOR ---
 generate_status() {
-  rotate_log_if_needed
   local html="$HOME/www/index.html"
   local model=$(getprop ro.product.model)
   local display_name="$model"
@@ -105,14 +95,14 @@ generate_status() {
         .badge.up { background: #2e7d32; }
         .badge.down { background: #c62828; }
         .log { background: #222; color: #0f0; padding: 10px; font-family: monospace;
-               overflow-x: auto; border-radius: 6px; font-size: 0.85em;            
+               overflow-x: auto; border-radius: 6px; font-size: 0.85em; }
       </style>
       <title>
         BirdFeeder Node Status
       </title>  
     </head>
     <body>
-      <h2>$display_name</h1>
+      <h1>$display_name</h1>
       <p><small>Last updated: $(date)</small></p>
       $sleep_badge
       <div class="grid">
@@ -174,7 +164,14 @@ export PATH=/data/data/com.termux/files/usr/bin:$PATH
 # --- 5. WEB SERVER START ---
 lighttpd -f $PREFIX/etc/lighttpd/lighttpd.conf >> ~/birdfeeder.log 2>&1
 (
+  LOG_RESET_AT=$(date +%s)
   while true; do
+    now=$(date +%s)
+    if [ $((now - LOG_RESET_AT)) -ge 300 ]; then
+      : > ~/birdfeeder.log
+      LOG_RESET_AT=$now
+      echo ">>> [$(date +%T)] Log cleared (5-minute snapshot)." >> ~/birdfeeder.log
+    fi
     generate_status
     sleep 60
   done
