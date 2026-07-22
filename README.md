@@ -115,8 +115,7 @@ index-file.names = ( "index.html" )
 ---
 
 ## Kiosk Mode
-_WIP_
-Display the local health page in kiosk browser whenever you physically turn the phone screen on rather than it sitting at the home screen.
+My better half often moves these phones around to different physical feeder areas, and the current solution does not provide a simple way for her to check the device's status. The solution I decided on was to sideload WebViewKiosk_v0.26.18.apk, set the homepage to http://localhost:8080, set WebViewKiosk as the phone's launcher, and enable lock. Pressing the power button will now display a live copy of the health webpage. More later..
 
 ---
 
