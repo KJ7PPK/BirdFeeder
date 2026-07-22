@@ -5,7 +5,7 @@
 # to edit variables, save the file, and reboot the phone.
 # off to chase hummingbirds - kj7ppk, chris hawthorne
 # ============================================================
-CODEC=opus            # opus | aac | pcm
+CODEC=pcm            # opus | aac | pcm
 BITRATE=64k           # used for opus/aac only
 CHANNELS=1            # 1 for mono. Opus will tell BirdNET-Go it's a stereo stream in mono, two identical channels so either is fine.
 GAIN_DB=0             # ffmpeg volume filter, in dB. Recommend doing gain adjustments in BirdNET-Go, but the option is here.
