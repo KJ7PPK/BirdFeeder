@@ -57,6 +57,7 @@ The verbiage varies a bit from device to device, but these are my baseline confi
 **Settings -> About Phone ->**  
   - Device Name: Configure as you'd like.  
 	 - Build number: Tap until developer mode is enabled.
+
 **Settings -> Network and Internet**  
 	 - About phone  
 	 - Private DNS Mode: Off  
@@ -64,6 +65,7 @@ The verbiage varies a bit from device to device, but these are my baseline confi
 	 - Internet: Network Preferences: Turn on Wi-Fi Automatically enabled, Notify for public networks disabled.  
 	 - Airplane Mode: On  
      - Wi-Fi: On
+
 **Settings -> System -> Developer Options**  
 	 - USB debugging: On  
 	 - Mobile data always active: Off  
