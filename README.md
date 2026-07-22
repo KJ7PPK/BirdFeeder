@@ -41,6 +41,7 @@ This tool is designed around the cheapest phones you can find on eBay — FRP-lo
 - [Device Preparation](#device-preparation)
 - [BirdFeeder Setup Process](#birdfeeder-setup)
 - [Acknowledgements](#acknowledgements)
+- [Kiosk Mode (Optional)](#kiosk-mode)
 
 ---
 
@@ -71,13 +72,68 @@ _WIP_
 4. Complete OOBE, skipping all setup including cellular, network, PIN, etc.
 
 ## BirdFeeder Setup
-_WIP_
+**_NOTE: THESE INSTRUCTIONS ARE ACCURATE BUT OUT OF ORDER AND POORLY FORMATTED. THIS IS A WORK IN PROGRESS._**
+**on the device**
+- Settings -> About Phone ->
+	- Device Name: Configure as you'd like. 
+	- Build number: Tap until developer mode is enabled.
+- Settings -> Network and Internet
+	- About phone -
+	- Private DNS Mode: Off
+	- Internet: Connect to your SSID, set to treat as unmetered, choose to use device MAC (not randomized), enable "send device name".
+	- Internet: Network Preferences: Turn on Wi-Fi Automatically enabled, Notify for public networks disabled.
+	- Airplane Mode: On
+- Settings -> System -> Developer Options
+	- USB debugging: On
+	- Mobile data always active: Off
+- Settings -> Apps -> Termux:API -> Modify System Settings -> Allowed
+
+**in terminal via ADB (USB or network)**
+```adb install com.termux_1022.apk com.termux.api_1002.apk com.termux.boot_1000.apk
+adb shell pm grant com.termux android.permission.WRITE_SECURE_SETTINGS # SETTING PERMISSIONS
+adb shell pm grant com.termux android.permission.RECORD_AUDIO
+adb shell pm grant com.termux.api android.permission.ACCESS_FINE_LOCATION
+adb shell pm grant com.termux.api android.permission.ACCESS_COARSE_LOCATION
+adb shell "/system/bin/device_config set_sync_disabled_for_tests persistent"
+adb shell "/system/bin/device_config put activity_manager max_phantom_processes 2147483647"
+adb shell "settings put global settings_enable_monitor_phantom_procs false"
+```
+**back on device**
+- Open each Termux app, grant any permissions requested, click the buttons for disabling battery optimization and granting display over other apps in Termux:Boot. 
+```pkg update && pkg upgrade
+pkg install termux-services openssh```
+# Exit your session and reopen Termux after this step.
+```sv-enable sshd
+passwd`
+# Set a password for future connections via ssh. 
+# Reboot device, ssh should now be listening on port 8022 (since we're non-rooted)
+
+**in terminal again**
+
+- Place start-birdfeeder.sh into the directory created below (~/.termux/boot/).  
+- Place birdfeeder.sh in ~/
+
+```
+ssh 1.2.3.4 -p 8022 and enter the password we set above. 
+pkg install ffmpeg pulseaudio lighttpd iproute2 termux-api
+mkdir ~/.termux/boot/
+chmod +x ~/.termux/boot/start-birdfeeder.sh
+chmod +x ~/birdfeeder.sh
+```
+
+Add three lines to the bottom of the lighttpd configuration file:
+```
+nano $PREFIX/etc/lighttpd/lighttpd.conf
+server.document-root = "/data/data/com.termux/files/home/www"
+server.port = 8080
+index-file.names = ( "index.html" )
+```
 
 ---
 
-## Device Kiosk Mode
+## Kiosk Mode
 _WIP_
-Display the local health page in kiosk browser mode whenever you physically turn the phone screen on. 
+Display the local health page in kiosk browser whenever you physically turn the phone screen on rather than it sitting at the home screen.
 
 ---
 
