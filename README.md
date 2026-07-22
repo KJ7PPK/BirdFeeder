@@ -120,7 +120,7 @@ chmod +x ~/.termux/boot/start-birdfeeder.sh
 chmod +x ~/birdfeeder.sh
 ```
 
-= Add these three lines to the bottom of the lighttpd configuration file:  
+- Add these three lines to the bottom of the lighttpd configuration file:  
 ```
 nano $PREFIX/etc/lighttpd/lighttpd.conf
 server.document-root = "/data/data/com.termux/files/home/www"
