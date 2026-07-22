@@ -1,4 +1,4 @@
-# BirdFeeder — Turn e-waste phones into RTSP audio sources
+# BirdFeeder — Android Phones as RTSP Audio Sources
 
 BirdFeeder turns cheap, locked, or other e-waste Android phones (FRP-locked, carrier-locked, bootloader-locked — the ones nobody wants) into single-purpose headless audio appliances that stream to an RTSP server, particularly for consumption by [BirdNET-Go](https://github.com/tphakala/birdnet-go) for ML bird call identification.
 
