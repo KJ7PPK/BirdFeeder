@@ -1,30 +1,90 @@
-# Turn e-waste Android phones into RTSP audio sources - WIP
-**created for use with BirdNET-Go (https://github.com/tphakala/birdnet-go)**
+# BirdFeeder — Turn e-waste phones into RTSP audio sources
 
-BirdNET-GO's RTSP support has continued getting better and better, and BirdFeeder is the solution for deploying multiple RTSP sources without dipping into hardware mods. This Repo shifted from Pi-specific to Android as phones produce cleaner audio, hold stronger connections, don't require assembly/soldering/enclosures, and the cost is lower. BirdFeeder.sh does the heavy lifting with a handful of dependencies and tweaks required. Handles reboots, crashes, etc. and offers configurable settings for RTSP publish path, codec, bitrate, sleep schedule, etc. along with a lighttpd-based health status page. Any device-specific steps/tweaks/tips will be outlined in subdirectories as I discover them. Documentation will be released after validation with latest script revision on a second wiped device. Currently field-testing with latest BirdNET-Go on a Pixel 3 XL, carrier-locked, fully headless. 
+BirdFeeder turns cheap, locked, or other e-waste Android phones (FRP-locked, carrier-locked, bootloader-locked — the ones nobody wants) into single-purpose headless audio appliances that stream to an RTSP server, particularly for consumption by [BirdNET-Go](https://github.com/tphakala/birdnet-go) for ML bird call identification.
 
-# Health Status Page Example
-<img width="1917" height="987" alt="image" src="https://github.com/user-attachments/assets/7a498361-791b-40ca-b034-43c95f4dc0fa" />
+I built this with the intent of deploying Pi Zero W nodes across my property, but I was never able to reduce the noise floor and get audio quality I was happy with, no matter what ADC/USB sound card/shielding combination I tried. I reworked the project to deploy on legacy Android phones instead — and the result has genuinely impressed me, both in audio quality and reliability, so I figured it was worth sharing.
 
-**Hardware Recommendations**
-This utility is designed to turn the cheapest phones on EBay (FRP-locked, carrier-locked, bootloader locked, etc.) into single-purpose appliances rather than e-waste. That said, I recommend staying away from any Verizon phones since they love to _**fuck**_ their customers with locked bootloaders. Phones that you can flash to LineageOS or otherwise root will make life simpler and give better results, specifically capturing UNPROCESSED audio since whatever pulseaudio gets through termux is what it is. I'd like to deploy a few variants of LG V## which were generally known for superb microphone arrays. In the end, this project aims to make the cheapest devices to acquire do the job in a reliable and effective manner. At a minimum, you need a working digitizer, mostly working screen, and working Wi-Fi radio. Stay away from Verizon phones or anything MDM-locked, but neither is a showstopper - just an annoyance that we overcome through sheer anger-driven determination.  
+**What does it do?**
+- Automatically launches as a service at boot via Termux:Boot, no manual interaction required.
+- Runs fully headless via Termux.
+- Captures audio via PulseAudio's module-sles-source and publishes it live to an RTSP server using ffmpeg
+- Automatically recovers from crashes, network drops, rtsp server reboots, etc.
+- Waits for connectivity to RTSP server before initializing stream.
+- Configurable options:
+  - Codec: Opus, AAC, or uncompressed PCM
+  - Bitrate (for Opus/AAC)
+  - Channel count: mono or stereo (mono by default.)
+  - Gain: adjustable dB boost applied via ffmpeg (gain disabled by default.)
+  - RTSP host/port/publish path
+  - Quiet hours: pauses stream during specified hours to preserve battery. (Disabled by default.)
+  - Node label: a friendly name for the status page, useful when you're running multiple nodes
+  - Serves a live, auto-refreshing health status page with device info, battery state, connectivity, logs, temperature, and more.
+  - Download links for the running script and boot launcher, for quick reference or debugging.
+  - Deliberately avoids noise reduction, normalization, or AGC for optimal ML-based bird classification.
+  - Clean slate on each launch - solidifying the device as an appliance and preventing duplicate services/streams/etc.
 
+## Hardware Recommendations
 
-**Successfully Deployed Devices**
+This tool is designed around the cheapest phones you can find on eBay — FRP-locked, carrier-locked, bootloader-locked, cracked, whatever. If it boots and has a working WiFi radio and microphone, it's a candidate. See the [Successfully Deployed Devices](#successfully-deployed-devices) section for hardware I've successfully deployed with -- but I've found that the process is pretty similar across devices, with a few nuances for MDM and FRP locks (details provided where I can).
 
-_PIXEL 3 XL, Android 12_, (Carrier and MDM Locked!)
-- Currently streaming with latest BirdFeeder script. This runs "headless" compared to the Moto G which relies on Termux as a launcher / in the foreground. This is the basis for how I set up all devices moving forward. Completed 7/18/26 and put into the field.
+## Health Status Page Example
 
-_Raspberry Pi Zero 2 W_ (In use, but deprecating.)
-Script and instructions are in this repo. I will not be doing any further work on Pi hardware for this use, the hardware cost vs. the phone approach is silly and the audio quality is poor.
+<img width="958" height="493" alt="BirdFeeder status page example" src="https://github.com/user-attachments/assets/7a498361-791b-40ca-b034-43c95f4dc0fa" />
 
-_MOTO G STYLUS 2022 - Android #?_ (REWORK SOON)
-First phone I did this one, stream is resiliant & has basic health page. I will reset and attempt my Android 12 / Pixel streaming method as it is much more refined than what it runs currently.
+---
 
+## Table of Contents
 
-**_Other Devices In Progress_**
+- [Successfully Deployed Devices](#successfully-deployed-devices)
+- [Debloating Tools](#debloating-tools)
+- [MDM/FRP Locks](#locks)
+- [Device Preparation](#device-preparation)
+- [BirdFeeder Setup Process](#birdfeeder-setup)
+- [Acknowledgements](#acknowledgements)
 
-Pixel 2 - LineageOS Android 15 - Ready to install and document, expect to have script specifically for LineageOS devices so will take time.
-Pixel 2 XL - Android 12 - MDM lock resolved, bootloader locked. Potentially have dying digitizer, may push this or skip altogether.
-Pixel 3 - Android 12 - MDM lock resolved, bootloader locked. Ready to debloat, install, and document.
-Pixel 3 XL - Android 12 - MDM lock resolved, bootloader locked. Ready to debloat, install, and document.
+---
+
+## Successfully Deployed Devices
+- Pixel 2, Android 15, LineageOS 22.2 _FRP lock bypassed_
+- Pixel 3 XL, Android 12, Default ROM (Google Fi) _MDM lock bypassed_
+- Moto G Stylus 2022 non-5G, Stock ROM (Cricket)
+- Raspberry Pi Zero 2 W (deprecated, script in repo for reference)
+
+---
+
+## Debloating Tools
+_WIP_
+
+---
+
+## Locks
+_WIP_
+
+---
+
+## Device Preparation
+_WIP_
+
+1. Evaluate condition & functionality of phone. Note MDM or FRP locks.
+2. Perform factory reset or flash to LineageOS wherever possible.
+3. Bypass FRP / Remove MDM as needed. (see [MDM/FRP Locks](#locks))
+4. Complete OOBE, skipping all setup including cellular, network, PIN, etc.
+
+## BirdFeeder Setup
+_WIP_
+
+---
+
+## Device Kiosk Mode
+_WIP_
+Display the local health page in kiosk browser mode whenever you physically turn the phone screen on. 
+
+---
+
+## Acknowledgements
+
+- [BirdNET-Go](https://github.com/tphakala/birdnet-go) — the whole reason this project exists
+- [Termux](https://github.com/termux/termux-app) / [Termux:Boot](https://github.com/termux/termux-boot) / [Termux:API](https://github.com/termux/termux-api)
+- [MediaMTX](https://github.com/bluenviron/mediamtx) — RTSP server used in my environment
+- [LineageOS](https://lineageos.org/) — used wherever bootlocker unlocking permits
+- [FFmpeg](https://ffmpeg.org/) / [PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio/) / [lighttpd](https://www.lighttpd.net/)
