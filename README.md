@@ -52,18 +52,19 @@ This tool is designed around the cheapest phones you can find on eBay — FRP-lo
 4. Complete OOBE, skipping all setup including cellular, network, PIN, etc.
 
 ## BirdFeeder Setup
-The verbiage varies a bit from device to device, but these are my baseline configurations that I configure on the phone by hand:  
-    Settings -> About Phone ->  
-	 - Device Name: Configure as you'd like.  
-	 - Build number: Tap until developer mode is enabled.  
-    Settings -> Network and Internet  
+The verbiage varies a bit from device to device, but these are my baseline configurations that I configure on the phone by hand. 
+
+**Settings -> About Phone ->**  
+  - Device Name: Configure as you'd like.  
+	 - Build number: Tap until developer mode is enabled.
+**Settings -> Network and Internet**  
 	 - About phone  
 	 - Private DNS Mode: Off  
 	 - Internet: Connect to your SSID, set to treat as unmetered, choose to use device MAC (not randomized), enable "send device name".  
 	 - Internet: Network Preferences: Turn on Wi-Fi Automatically enabled, Notify for public networks disabled.  
 	 - Airplane Mode: On  
-     - Wi-Fi: On  
-    Settings -> System -> Developer Options  
+     - Wi-Fi: On
+**Settings -> System -> Developer Options**  
 	 - USB debugging: On  
 	 - Mobile data always active: Off  
 
