@@ -1,8 +1,0 @@
-# Security Policy
-These devices will capture any and all audio within range, including conversations. You can enable the privacy filters to prevent recording human voices within BirdNET-Go, but the raw transfer is still taking place, presumably over WPA2-protected Wi-Fi. The nature of the devices this project is intended for implies that the the devices and their applications will never be updated, and the versions of Android being used are long-past retired from receiving security updates. I deploy these devices in an area where physical access to them or even their network RF is wildly unlikely -- but network attack vectors pose risk. As such, all nodes that I deploy are VLAN-isolated and firewalled to only allow communication to the intended RTSP server & and in-bound access to the health tool & SSHD from select hosts on my intranet. Both of the latter can be disabled if you prefer. 
-
-**TL;DR:**
-This suite of instructions, guides, and the audio scripts is being created with functionality in mind, not security. The devices are past end-of-support patches and you are responsible for taking adequate steps to defend against any potential attack vectors.
-
-## Reporting a Vulnerability
-I am less interested in security vulnerabilities and more interested in things that impact functionality / reliability. Regardless, feel free to post under Issues or Discussions. My time is incredibly limited and this is a very niche project, but I'll help where I can -- as I deploy more phones, I'll build this repo to include quirks & changes that are required per device. As far as debloating / unlocking devices, I'll provide general guidance, but it will vary from device to device regardless.
