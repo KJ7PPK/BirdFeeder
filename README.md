@@ -4,24 +4,16 @@ BirdFeeder turns cheap, locked, or other e-waste Android phones (FRP-locked, car
 
 I built this with the intent of deploying Pi Zero W nodes across my property, but I was never able to reduce the noise floor and get audio quality I was happy with, no matter what ADC/USB sound card/shielding combination I tried. I reworked the project to deploy on legacy Android phones instead — and the result has genuinely impressed me, both in audio quality and reliability, so I figured it was worth sharing.
 
+**NOTE: This project is fully functional in my environment across multiple devices, and the documentation is admittedly not great. I am working on expanding this repo doc and experimenting with a setup script to run on your host mahcine to eliminate a lot of manual work in the future.**
+
 **What does it do?**
 - Automatically launches as a service at boot via Termux:Boot, no manual interaction required.
 - Runs fully headless via Termux.
 - Captures audio via PulseAudio's module-sles-source and publishes it live to an RTSP server using ffmpeg
 - Automatically recovers from crashes, network drops, rtsp server reboots, etc.
 - Waits for connectivity to RTSP server before initializing stream.
-- Configurable options:
-  - Codec: Opus, AAC, or uncompressed PCM
-  - Bitrate (for Opus/AAC)
-  - Channel count: mono or stereo (mono by default.)
-  - Gain: adjustable dB boost applied via ffmpeg (gain disabled by default.)
-  - RTSP host/port/publish path
-  - Quiet hours: pauses stream during specified hours to preserve battery. (Disabled by default.)
-  - Node label: a friendly name for the status page, useful when you're running multiple nodes
-  - Serves a live, auto-refreshing health status page with device info, battery state, connectivity, logs, temperature, and more.
-  - Download links for the running script and boot launcher, for quick reference or debugging.
-  - Deliberately avoids noise reduction, normalization, or AGC for optimal ML-based bird classification.
-  - Clean slate on each launch - solidifying the device as an appliance and preventing duplicate services/streams/etc.
+- Configurable options for stream quality, gain, bitrate (if using a lossy codec), RTSP destination, etc.  
+> For a deep dive on the audio processing pipeline (capture → PulseAudio → ffmpeg → codec → RTSP) and the known constraints of running non-root on locked/cheap hardware, see the [Technical Details wiki page](../../wiki/Technical-Details).
 
 ## Hardware Recommendations
 
@@ -36,12 +28,12 @@ This tool is designed around the cheapest phones you can find on eBay — FRP-lo
 ## Table of Contents
 
 - [Successfully Deployed Devices](#successfully-deployed-devices)
-- [Debloating Tools](#debloating-tools)
-- [MDM/FRP Locks](#locks)
+- [Debloating Tools](#debloating-tools) **In Progress, likely moving to Wiki.**
+- [MDM/FRP Locks](#locks) **In Progress, likely moving to Wiki.**
 - [Device Preparation](#device-preparation)
 - [BirdFeeder Setup Process](#birdfeeder-setup)
+- [Kiosk Mode (Optional)](#kiosk-mode) **In Testing, documentation to follow.**
 - [Acknowledgements](#acknowledgements)
-- [Kiosk Mode (Optional)](#kiosk-mode)
 
 ---
 
@@ -53,25 +45,13 @@ This tool is designed around the cheapest phones you can find on eBay — FRP-lo
 
 ---
 
-## Debloating Tools
-_WIP_
-
----
-
-## Locks
-_WIP_
-
----
-
 ## Device Preparation
-_WIP_
-
 1. Evaluate condition & functionality of phone. Note MDM or FRP locks.
 2. Perform factory reset or flash to LineageOS wherever possible.
 3. Bypass FRP / Remove MDM as needed. (see [MDM/FRP Locks](#locks))
 4. Complete OOBE, skipping all setup including cellular, network, PIN, etc.
 
-## BirdFeeder Setup  
+## BirdFeeder Setup
 The verbiage varies a bit from device to device, but these are my baseline configurations that I configure on the phone by hand:  
     Settings -> About Phone ->  
 	 - Device Name: Configure as you'd like.  
@@ -86,12 +66,12 @@ The verbiage varies a bit from device to device, but these are my baseline confi
     Settings -> System -> Developer Options  
 	 - USB debugging: On  
 	 - Mobile data always active: Off  
-    Settings -> Apps -> Termux:API -> Modify System Settings -> Allowed    
 
-Then, connect to the phone via ADB (either USB or network) and run the following:  
+Then, connect to the phone via ADB (either USB or network) and run the following:
 ```
-adb install com.termux_1022.apk com.termux.api_1002.apk com.termux.boot_1000.apk
-adb shell pm grant com.termux android.permission.WRITE_SECURE_SETTINGS # SETTING PERMISSIONS
+adb install com.termux_1022.apk
+adb install com.termux.api_1002.apk
+adb install com.termux.boot_1000.apk
 adb shell pm grant com.termux android.permission.RECORD_AUDIO
 adb shell pm grant com.termux.api android.permission.ACCESS_FINE_LOCATION
 adb shell pm grant com.termux.api android.permission.ACCESS_COARSE_LOCATION
@@ -99,10 +79,10 @@ adb shell "/system/bin/device_config set_sync_disabled_for_tests persistent"
 adb shell "/system/bin/device_config put activity_manager max_phantom_processes 2147483647"
 adb shell "settings put global settings_enable_monitor_phantom_procs false"
 ```
-Manually, on the device again:  
-  - Open each Termux app, grant any permissions requested, click the buttons for disabling battery optimization and granting display over other apps in Termux:Boot.  
-  - Settings -> Apps -> Termux:API -> Modify System Settings -> Allowed  
-  - Run the following to start our termux service and setup SSH:  
+Manually, on the device again:
+  - Open each Termux app, grant any permissions requested, click the buttons for disabling battery optimization and granting display over other apps in Termux:Boot.
+  - Settings -> Apps -> Termux:API -> Modify System Settings -> Allowed
+  - Run the following to start our termux service and setup SSH:
 ```
 pkg update && pkg upgrade
 pkg install termux-services openssh
@@ -110,17 +90,18 @@ sv-enable sshd
 passwd
 ```
 - The "passwd" command is to set your SSH login password. You'll need to exit and restart Termux afterward. From there, we can connect to the device over SSH on port 8022 since we're not rooted.
-- Place start-birdfeeder.sh into the boot directory we create below (~/.termux/boot/)
-- Place birdfeeder.sh in ~/
 ```
 ssh 1.2.3.4 -p 8022
 pkg install ffmpeg pulseaudio lighttpd iproute2 termux-api
 mkdir ~/.termux/boot/
+```
+- Place `start-birdfeeder.sh` into `~/.termux/boot/` and `birdfeeder.sh` into `~/` (e.g. `nano` the file directly on-device and paste the contents, or `scp` them over from your workstation), then:
+```
 chmod +x ~/.termux/boot/start-birdfeeder.sh
 chmod +x ~/birdfeeder.sh
 ```
 
-- Add these three lines to the bottom of the lighttpd configuration file:  
+- Add these three lines to the bottom of the lighttpd configuration file:
 ```
 nano $PREFIX/etc/lighttpd/lighttpd.conf
 server.document-root = "/data/data/com.termux/files/home/www"
@@ -131,7 +112,7 @@ index-file.names = ( "index.html" )
 ---
 
 ## Kiosk Mode
-_WIP_  
+_WIP_
 Display the local health page in kiosk browser whenever you physically turn the phone screen on rather than it sitting at the home screen.
 
 ---
