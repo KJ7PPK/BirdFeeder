@@ -38,10 +38,19 @@ This tool is designed around the cheapest phones you can find on eBay — FRP-lo
 ---
 
 ## Successfully Deployed Devices
-- Pixel 2, Android 15, LineageOS 22.2 _FRP lock bypassed_
-- Pixel 3 XL, Android 12, Default ROM (Google Fi) _MDM lock bypassed_
-- Moto G Stylus 2022 non-5G, Stock ROM (Cricket)
+Android 12:  
+- Pixel 3 XL with default Google Fi ROM. (_mdm lock bypassed_)
+- Moto G Stylus 2022 (Non-5G) with default Cricket ROM.
+
+Android 15:  
+- Pixel 2 with LineageOS 22.2 ROM. (_FRP lock bypassed_)
+
+Other:  
 - Raspberry Pi Zero 2 W (deprecated, script in repo for reference)
+
+**Android 15 Notes**  
+- Permissions seem to be locked down a bit further. I modified the start-birdfeeder.sh with one line so that the background processes (specifically, sshd) would run, else it required first bringing Termux into the foreground. That line was "$PREFIX/bin/runsvdir $PREFIX/var/service > /dev/null 2>&1 &". This is in the default repo file now, should not have negative impact on older devices.
+- Birdfeeder.log will begin with 3 permissions errors, again due to further restrictions, only functional impact is the device's MAC address will not be displayed on the health check page.
 
 ---
 
