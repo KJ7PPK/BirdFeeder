@@ -44,13 +44,13 @@ Android 12:
 
 Android 15:  
 - Pixel 2 with LineageOS 22.2 ROM. (_FRP lock bypassed_)
+**Issues: **
+  - **OPEN** Audio stream is dead silent unless you open the LineageOS Recorder application, and start/stop a recording. RTSP audio spring to life when you do this, and remains functional until a reboot. I am not sure of the mechanism causing this quite yet, Android 15 seems to be locked down a little tighter.
+  - **OPEN** Sysinfo is further locked down, cannot pull MAC address so health page is missing this field.
+  - **Resolved** Termux:Boot was able to start the streaming script, but SSH was never listening unless you brought Termux to the foreground. I modified the start-birdfeeder.sh with one line so that the background processes (specifically, sshd) would run, else it required first bringing Termux into the foreground. That line was "$PREFIX/bin/runsvdir $PREFIX/var/service > /dev/null 2>&1 &". This is in the default repo file now, should not have negative impact on older devices.
 
 Other:  
 - Raspberry Pi Zero 2 W (deprecated, script in repo for reference)
-
-**Android 15 Notes**  
-- Permissions seem to be locked down a bit further. I modified the start-birdfeeder.sh with one line so that the background processes (specifically, sshd) would run, else it required first bringing Termux into the foreground. That line was "$PREFIX/bin/runsvdir $PREFIX/var/service > /dev/null 2>&1 &". This is in the default repo file now, should not have negative impact on older devices.
-- Birdfeeder.log will begin with 3 permissions errors, again due to further restrictions, only functional impact is the device's MAC address will not be displayed on the health check page.
 
 ---
 
