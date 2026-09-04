@@ -10,6 +10,7 @@ import android.media.*
 import android.media.audiofx.AcousticEchoCanceler
 import android.media.audiofx.AutomaticGainControl
 import android.media.audiofx.NoiseSuppressor
+import android.net.*
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
@@ -43,8 +44,7 @@ class AudioStreamingService : Service() {
 
     private val binder = LocalBinder()
     
-    private var rtspServer: RtspServer? = null
-    private var audioEncoder: AudioEncoder? = null
+    private var rtspServer: SimpleRtspServer? = null
     
     private val isRunning = AtomicBoolean(false)
     private var audioThread: Thread? = null
@@ -69,6 +69,7 @@ class AudioStreamingService : Service() {
 
     private var preferredDevice: AudioDeviceInfo? = null
     private var streamingPort: Int = PORT
+    private var selectedAudioSource: Int = MediaRecorder.AudioSource.MIC
 
     companion object {
         private const val TAG = "AudioStreamingService"
@@ -90,9 +91,11 @@ class AudioStreamingService : Service() {
             
         private var instance: AudioStreamingService? = null
 
-        fun start(context: Context, port: Int = PORT, device: AudioDeviceInfo? = null) {
+        fun start(context: Context, port: Int = PORT, device: AudioDeviceInfo? = null, audioSource: Int = MediaRecorder.AudioSource.MIC) {
             val intent = Intent(context, AudioStreamingService::class.java).apply {
+                action = "ACTION_START"
                 putExtra("PORT", port)
+                putExtra("AUDIO_SOURCE", audioSource)
                 device?.let { putExtra("DEVICE_ID", it.id) }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -103,8 +106,14 @@ class AudioStreamingService : Service() {
         }
 
         fun stop(context: Context) {
-            val intent = Intent(context, AudioStreamingService::class.java)
-            context.stopService(intent)
+            val intent = Intent(context, AudioStreamingService::class.java).apply {
+                action = "ACTION_STOP"
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
         }
     }
 
@@ -113,6 +122,67 @@ class AudioStreamingService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
+
+    private var connectivityManager: ConnectivityManager? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+
+    private fun registerNetworkCallback() {
+        try {
+            connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+            val request = NetworkRequest.Builder()
+                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
+                .build()
+
+            networkCallback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    updateRtspUrl()
+                }
+
+                override fun onLost(network: Network) {
+                    updateRtspUrl()
+                }
+
+                override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                    updateRtspUrl()
+                }
+            }
+
+            connectivityManager?.registerNetworkCallback(request, networkCallback!!)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error registering network callback", e)
+        }
+    }
+
+    private fun unregisterNetworkCallback() {
+        try {
+            networkCallback?.let { connectivityManager?.unregisterNetworkCallback(it) }
+            networkCallback = null
+        } catch (_: Exception) {}
+    }
+
+    fun updateRtspUrl() {
+        _rtspUrl.value = getRtspUrl()
+    }
+
+    fun stopStreaming() {
+        if (!isRunning.get()) return
+        isRunning.set(false)
+        rtspServer?.stop()
+        rtspServer = null
+        audioThread?.interrupt()
+        audioThread = null
+        _isStreaming.value = false
+        _audioLevels.value = emptyList()
+        unregisterNetworkCallback()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
+        stopSelf()
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -123,7 +193,7 @@ class AudioStreamingService : Service() {
 
     private fun updateEngineStatus() {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        _audioSourceMode.value = if (getBestAudioSource(audioManager) == MediaRecorder.AudioSource.UNPROCESSED) "UNPROCESSED" else "VOICE_RECOGNITION"
+        _audioSourceMode.value = if (selectedAudioSource == MediaRecorder.AudioSource.UNPROCESSED) "UNPROCESSED (Raw)" else "MIC (Hardware Boosted)"
         
         val inputDevices = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
         val physicalMics = inputDevices.filter { 
@@ -135,7 +205,13 @@ class AudioStreamingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "ACTION_STOP") {
+            stopStreaming()
+            return START_NOT_STICKY
+        }
+
         streamingPort = intent?.getIntExtra("PORT", PORT) ?: PORT
+        selectedAudioSource = intent?.getIntExtra("AUDIO_SOURCE", MediaRecorder.AudioSource.MIC) ?: MediaRecorder.AudioSource.MIC
         val deviceId = intent?.getIntExtra("DEVICE_ID", -1) ?: -1
         if (deviceId != -1) {
             val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
@@ -175,96 +251,23 @@ class AudioStreamingService : Service() {
         if (isRunning.get()) return
         isRunning.set(true)
         _isStreaming.value = true
-        
-        val connectChecker = object : ConnectChecker {
-            override fun onConnectionStarted(url: String) { Log.d(TAG, "RTSP Connection started: $url") }
-            override fun onConnectionSuccess() { Log.d(TAG, "RTSP Connection success") }
-            override fun onConnectionFailed(reason: String) { Log.e(TAG, "RTSP Connection failed: $reason") }
-            override fun onNewBitrate(bitrate: Long) {}
-            override fun onDisconnect() { Log.d(TAG, "RTSP Disconnected") }
-            override fun onAuthError() { Log.e(TAG, "RTSP Auth error") }
-            override fun onAuthSuccess() { Log.d(TAG, "RTSP Auth success") }
-        }
 
-        // Initialize RTSP Server
-        rtspServer = RtspServer(connectChecker, streamingPort)
-        rtspServer?.setOnlyAudio(true)
-        rtspServer?.setAudioInfo(SAMPLE_RATE, false) // 48kHz, mono
-        
-        // Start RTSP Server FIRST before sending codec config
-        rtspServer?.startServer()
-        
-        // Pre-populate AAC AudioSpecificConfig for 48kHz mono AAC-LC (0x11, 0x88) AFTER startServer()
-        val aacConfig = byteArrayOf(0x11.toByte(), 0x88.toByte())
-        val configBuffer = ByteBuffer.wrap(aacConfig)
-        val configInfo = MediaCodec.BufferInfo().apply {
-            offset = 0
-            size = aacConfig.size
-            presentationTimeUs = 0
-            flags = MediaCodec.BUFFER_FLAG_CODEC_CONFIG
-        }
-        rtspServer?.sendAudio(configBuffer, configInfo)
-        
-        // Initialize Audio Encoder
-        audioEncoder = AudioEncoder(object : GetAudioData {
-            override fun getAudioData(audioBuffer: ByteBuffer, info: MediaCodec.BufferInfo) {
-                try {
-                    audioBuffer.position(info.offset)
-                    audioBuffer.limit(info.offset + info.size)
-                    rtspServer?.sendAudio(audioBuffer, info)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error in sendAudio", e)
-                }
-            }
+        registerNetworkCallback()
 
-            override fun onAudioFormat(mediaFormat: MediaFormat) {
-                val sampleRate = mediaFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
-                val channelCount = mediaFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-                rtspServer?.setAudioInfo(sampleRate, channelCount > 1)
-                
-                try {
-                    val csd0 = mediaFormat.getByteBuffer("csd-0")
-                    if (csd0 != null) {
-                        val csdInfo = MediaCodec.BufferInfo().apply {
-                            offset = 0
-                            size = csd0.remaining()
-                            presentationTimeUs = 0
-                            flags = MediaCodec.BUFFER_FLAG_CODEC_CONFIG
-                        }
-                        rtspServer?.sendAudio(csd0, csdInfo)
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to extract csd-0 from media format", e)
-                }
-            }
-        })
-        
-        // Use 64kbps bitrate for Mono AAC (128kbps can fail on some device encoders for mono)
-        var prepared = audioEncoder?.prepareAudioEncoder(64 * 1024, SAMPLE_RATE, false) ?: false
-        if (!prepared) {
-            Log.w(TAG, "Failed 64kbps, trying 96kbps AudioEncoder preparation...")
-            prepared = audioEncoder?.prepareAudioEncoder(96 * 1024, SAMPLE_RATE, false) ?: false
-        }
+        // Initialize Simple RTSP Server
+        rtspServer = SimpleRtspServer(streamingPort)
+        rtspServer?.start()
 
-        if (prepared) {
-            audioEncoder?.start(true)
-            _rtspUrl.value = getRtspUrl()
-            
-            audioThread = Thread({ captureAndStream() }, "AudioCaptureThread")
-            audioThread?.start()
-            
-            Log.i(TAG, "Audio-only RTSP Server started on port $streamingPort (${getRtspUrl()})")
-        } else {
-            Log.e(TAG, "Failed to prepare AudioEncoder")
-            isRunning.set(false)
-            _isStreaming.value = false
-            _audioLevels.value = emptyList()
-            rtspServer?.stopServer()
-        }
+        updateRtspUrl()
+
+        audioThread = Thread({ captureAndStream() }, "AudioCaptureThread")
+        audioThread?.start()
+
+        Log.i(TAG, "L16 PCM Audio RTSP Server started on port $streamingPort (${getRtspUrl()})")
     }
 
     private fun getRtspUrl(): String {
-        val ip = rtspServer?.serverIp ?: getLocalIpAddress() ?: "0.0.0.0"
+        val ip = getLocalIpAddress() ?: "0.0.0.0"
         return "rtsp://$ip:$streamingPort/live"
     }
 
@@ -290,11 +293,11 @@ class AudioStreamingService : Service() {
         val records = mutableListOf<AudioRecord>()
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         
-        val sourcesToTry = listOf(
-            getBestAudioSource(audioManager),
-            MediaRecorder.AudioSource.VOICE_RECOGNITION,
-            MediaRecorder.AudioSource.MIC
-        ).distinct()
+        val sourcesToTry = if (selectedAudioSource == MediaRecorder.AudioSource.UNPROCESSED) {
+            listOf(MediaRecorder.AudioSource.UNPROCESSED, MediaRecorder.AudioSource.MIC)
+        } else {
+            listOf(MediaRecorder.AudioSource.MIC, MediaRecorder.AudioSource.CAMCORDER, MediaRecorder.AudioSource.VOICE_RECOGNITION)
+        }.distinct()
 
         for (source in sourcesToTry) {
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) break
@@ -339,10 +342,9 @@ class AudioStreamingService : Service() {
             return
         }
 
-        // 1024 PCM samples per AAC frame (16-bit mono = 2048 bytes)
+        // 1024 PCM samples per frame
         val frameSamples = 1024
         val shortBuffer = ShortArray(frameSamples)
-        val byteBuffer = ByteArray(frameSamples * 2)
 
         while (isRunning.get()) {
             val record = records[0]
@@ -357,26 +359,16 @@ class AudioStreamingService : Service() {
             for (j in 0 until readCount) {
                 val sampleWithGain = shortBuffer[j] * gain
                 val clampedSample = max(Short.MIN_VALUE.toFloat(), min(Short.MAX_VALUE.toFloat(), sampleWithGain)).toInt().toShort()
-                
+                shortBuffer[j] = clampedSample
                 maxAmplitude = max(maxAmplitude, abs(clampedSample.toFloat()))
-                
-                byteBuffer[j * 2] = (clampedSample.toInt() and 0xFF).toByte()
-                byteBuffer[j * 2 + 1] = ((clampedSample.toInt() shr 8) and 0xFF).toByte()
             }
             
             // Update visualizer StateFlow
             val normalizedLevel = min(1.0f, maxAmplitude / Short.MAX_VALUE.toFloat())
             updateAudioLevels(normalizedLevel)
             
-            // Feed to AudioEncoder (2048 bytes per AAC frame)
-            try {
-                audioEncoder?.let { encoder ->
-                    val timeStamp = System.nanoTime() / 1000 // Microseconds
-                    encoder.inputPCMData(Frame(byteBuffer, 0, readCount * 2, timeStamp))
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error feeding encoder", e)
-            }
+            // Stream uncompressed L16 PCM directly over RTSP!
+            rtspServer?.sendPcmAudio(shortBuffer, readCount)
         }
         
         for (record in records) {
@@ -389,14 +381,8 @@ class AudioStreamingService : Service() {
 
     private val levelHistory = mutableListOf<Float>()
     
-    private fun getBestAudioSource(audioManager: AudioManager): Int {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
-            audioManager.getProperty(AudioManager.PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED) == "true"
-        ) {
-            MediaRecorder.AudioSource.UNPROCESSED
-        } else {
-            MediaRecorder.AudioSource.VOICE_RECOGNITION
-        }
+    private fun getBestAudioSource(audioManager: AudioManager? = null): Int {
+        return selectedAudioSource
     }
 
     private fun disableAudioEffects(audioSessionId: Int) {
@@ -465,8 +451,7 @@ class AudioStreamingService : Service() {
 
     override fun onDestroy() {
         isRunning.set(false)
-        audioEncoder?.stop()
-        rtspServer?.stopServer()
+        rtspServer?.stop()
         instance = null
         _isStreaming.value = false
         _audioLevels.value = emptyList() // Clear visualizer

@@ -27,7 +27,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kj7ppk.birdfeeder.ui.MainViewModel
 import com.kj7ppk.birdfeeder.ui.components.AudioVisualizer
 import com.kj7ppk.birdfeeder.ui.components.ControlsSection
-import com.kj7ppk.birdfeeder.ui.components.RtspUrlSection
 import androidx.compose.ui.tooling.preview.Preview
 import com.kj7ppk.birdfeeder.ui.theme.BirdFeederTheme
 
@@ -55,7 +54,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     val selectedMic by viewModel.selectedMic.collectAsState()
     val availableMics by viewModel.availableMics.collectAsState()
     val audioSourceMode by viewModel.audioSourceMode.collectAsState()
-    val foundMicIds by viewModel.foundMicIds.collectAsState()
+    val autoStreamOnLaunch by viewModel.autoStreamOnLaunch.collectAsState()
+    val selectedAudioSource by viewModel.selectedAudioSource.collectAsState()
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -84,7 +84,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             // Background Leaf Pattern Decoration
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val leafColor = Color(0xFF2D5A27).copy(alpha = 0.05f)
@@ -106,41 +106,38 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Header with Bird Motif
+                // Header with Bird Motif (Compact)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Filled.FlutterDash,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(48.dp)
+                        modifier = Modifier.size(36.dp)
                     )
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = "BirdFeeder",
-                        style = MaterialTheme.typography.headlineLarge.copy(
+                        style = MaterialTheme.typography.headlineMedium.copy(
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.primary
                         )
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Live View Section (Waveform)
+                // Compact Waveform Section
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(110.dp),
-                    shape = RoundedCornerShape(24.dp),
+                        .height(72.dp),
+                    shape = RoundedCornerShape(16.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
@@ -148,52 +145,29 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         AudioVisualizer(
                             levels = audioLevels,
-                            modifier = Modifier.padding(12.dp)
-                        )
-                        
-                        // Decorative leaf in corner of waveform
-                        Icon(
-                            imageVector = Icons.Filled.FlutterDash,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                            modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp).size(40.dp)
+                            modifier = Modifier.padding(6.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                // Status Indicator & RTSP URL
+                StreamingStatusBox(isStreaming, rtspUrl)
 
-                // Status Indicator
-                StreamingStatusBox(isStreaming)
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // RTSP URL Section
-                if (isStreaming) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
-                    ) {
-                        RtspUrlSection(
-                            url = rtspUrl,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
-
-                // Controls & Engine Info Section
+                // Controls & Appliance Configuration Card
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(28.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
-                    Column(modifier = Modifier.padding(24.dp)) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         ControlsSection(
                             isStreaming = isStreaming,
                             onStreamingChange = { viewModel.toggleStreaming(it) },
+                            autoStreamOnLaunch = autoStreamOnLaunch,
+                            onAutoStreamChange = { viewModel.setAutoStreamOnLaunch(it) },
+                            selectedAudioSource = selectedAudioSource,
+                            onAudioSourceChange = { viewModel.setSelectedAudioSource(it) },
                             micSource = selectedMic,
                             availableMics = availableMics,
                             onMicChange = { viewModel.setSelectedMic(it) },
@@ -201,13 +175,12 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                             onPortChange = { viewModel.setPort(it) },
                             gain = gain,
                             onGainChange = { viewModel.setGain(it) },
-                            audioSourceMode = audioSourceMode,
-                            foundMicIds = foundMicIds
+                            onOpenHomeSettings = { viewModel.openHomeSettings(context) },
+                            onRequestBatteryExemption = { viewModel.requestBatteryOptimizationExemption(context) },
+                            audioSourceMode = audioSourceMode
                         )
                     }
                 }
-                
-                Spacer(modifier = Modifier.height(32.dp))
             }
         }
     }
@@ -222,34 +195,46 @@ fun MainScreenPreview() {
 }
 
 @Composable
-fun StreamingStatusBox(isActive: Boolean) {
+fun StreamingStatusBox(isActive: Boolean, url: String) {
     Surface(
         color = if (isActive) Color(0xFFE8F5E9) else Color(0xFFFAFAFA),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, if (isActive) Color(0xFFC8E6C9) else Color(0xFFEEEEEE)),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(12.dp)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(8.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .background(
-                        color = if (isActive) Color(0xFF4CAF50) else Color.LightGray,
-                        shape = CircleShape
-                    )
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = if (isActive) "STREAMING ACTIVE" else "STREAMING INACTIVE",
-                style = MaterialTheme.typography.titleSmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = if (isActive) Color(0xFF2E7D32) else Color.Gray
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .background(
+                            color = if (isActive) Color(0xFF4CAF50) else Color.LightGray,
+                            shape = CircleShape
+                        )
                 )
-            )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (isActive) "STREAMING ACTIVE" else "STREAMING INACTIVE",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = if (isActive) Color(0xFF2E7D32) else Color.Gray
+                    )
+                )
+            }
+            if (isActive && url.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = url,
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }
