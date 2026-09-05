@@ -14,12 +14,12 @@ I am not a fan of clankers, but this was built with Android Studio and the Gemin
 My workflow is pretty straightforward, you need standard adb tools and UAD-NG if you want to debloat:
 1. Factory reset device.
 2. Perform initial setup, bypassing cellular & wifi connections.
-3. Debloat using UAD-NG, my standard is remove everything in the default "recommended" list plus com.google.vending (play store) and com.android.captiveportallogin or com.google.android.captiveportallogin - the captive portal is important to remove if you're WAN-blocking your device.
+3. Debloat using UAD-NG, my standard is remove everything in the default "recommended" list.
 5. Install BirdFeeder apk.
 
 # Notes
 1. On Pixel phones, you may want to disable the Pixel Setup nonsense with adb (com.google.android.setupwizard)
-2. If you're blocking WAN access for your devices, you will want to disable the captive portal junk before connecting to a network --- or forget the network and reconnect to it after disabling the portal stuff. This fixed an issue where my Pixels would boot and start streaming but would never automatically connect to my "No Internet" SSID:
+2. If you're blocking WAN access for your devices, you need to remove com.android.captiveportallogin or com.google.android.captiveportallogin and run the commands below before connecting to a network --- or if you need to connect before WAN-blocking, forget the network and reconnect to it after. This fixed an issue where my Pixels would boot and start streaming but would never automatically connect to my "No Internet" SSID:
    
    ``adb shell settings put global captive_portal_mode 0``
    
