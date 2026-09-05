@@ -5,16 +5,17 @@ This apk is intended to be used as a launcher to turn cheap Android phones into 
 I am not a fan of clankers, but this was built with Android Studio and the Gemini agent because I don't have time to learn this shit, and I have no plans for building other Android apps. Just throwing it out there. Testing is limited, but I will update my device list below as I convert devices from my various other scripts & methods to the single apk here. 
 
 # Devices Tested Successfully
-1. Pixel 3 XL, Android 12, OEM Locked.
+1. Pixel 3 XL, Android 12
 2. Pixel 2, Android 15, LineageOS 22.2-20260710-NIGHTLY-walleye
-3. Pixel 3, Android 12, Carrier Locked.
+3. Pixel 3, Android 12
+4. Moto G Stylus (2022), Android 12 (XT2211-1)
 
 # Setup
-My workflow is pretty straightforward:
+My workflow is pretty straightforward, you need standard adb tools and UAD-NG if you want to debloat:
 1. Factory reset device.
 2. Perform initial setup, bypassing cellular & wifi connections.
-3. Debloat using UAD-NG to remove just about everything on the phone.
-4. Install BirdFeeder.
+3. Debloat using UAD-NG, my standard is remove everything in the default "recommended" list plus com.google.vending (play store) and com.android.captiveportallogin or com.google.android.captiveportallogin - the captive portal is important to remove if you're WAN-blocking your device.
+5. Install BirdFeeder apk.
 
 # Notes
 1. On Pixel phones, you may want to disable the Pixel Setup nonsense with adb (com.google.android.setupwizard)
