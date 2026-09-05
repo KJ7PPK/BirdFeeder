@@ -8,22 +8,25 @@ I am not a fan of clankers, but this was built with Android Studio and the Gemin
 1. Pixel 3 XL, Android 12
 2. Pixel 2, Android 15, LineageOS 22.2-20260710-NIGHTLY-walleye
 3. Pixel 3, Android 12
-4. Moto G Stylus (2022), Android 12 (XT2211-1)
+
+# Devices In Progress
+1. Moto G Stylus (2022), Android 12 (XT2211-1), app appears to install over ADB but doesn't make it to phone. Working this one.
 
 # Setup
 My workflow is pretty straightforward, you need standard adb tools and UAD-NG if you want to debloat:
 1. Factory reset device.
 2. Perform initial setup, bypassing cellular & wifi connections.
 3. Debloat using UAD-NG, my standard is remove everything in the default "recommended" list.
+     In addition to the recommended list, I also remove com.google.android.setupwizard, com.android.captiveportallogin, 
 5. Install BirdFeeder apk.
 
-# Notes
-1. On Pixel phones, you may want to disable the Pixel Setup nonsense with adb (com.google.android.setupwizard)
-2. If you're blocking WAN access for your devices, you need to remove com.android.captiveportallogin or com.google.android.captiveportallogin and run the commands below before connecting to a network --- or if you need to connect before WAN-blocking, forget the network and reconnect to it after. This fixed an issue where my Pixels would boot and start streaming but would never automatically connect to my "No Internet" SSID:
+# Notes on WAN-restricting devices
+1. Android is a dick about connecting to networks that don't provide WAN access. I have worked around this by removing the captiveportal-related packages (above) and running the two items below.
    
    ``adb shell settings put global captive_portal_mode 0``
    
    ``adb shell settings put global captive_portal_detection_enabled 0``
+2. If you connect to a network before this is done, you'll need to "forget" it and reconnect. I also choose "advanced" during connection and specify "treat as unmetered" and "Use Device MAC" so my DHCP reservation applies when the device requests an IP.
 
 # Features
 There are features I'd like to implement, but for now I wanted the app to replace the launcher, start a stream automatically, and restart on network drops/changes. I experimented with AAC but decided that the bandwidth needed for raw PCM isn't a problem. In the future, I'll probably add options to encode the audio and as I install on more devices, I'll expand the scope.
