@@ -4,8 +4,10 @@ This apk is intended to be used as a launcher to turn cheap Android phones into 
 
 I am not a fan of clankers, but this was built with Android Studio and the Gemini agent because I don't have time to learn this shit, and I have no plans for building other Android apps. Just throwing it out there. Testing is limited, but I will update my device list below as I convert devices from my various other scripts & methods to the single apk here. 
 
-# Devices Tested
+# Devices Tested Successfully
 1. Pixel 3 XL, Android 12, OEM Locked.
+2. Pixel 2, Android 15, LineageOS 22.2-20260710-NIGHTLY-walleye
+3. Pixel 3, Android 12, Carrier Locked.
 
 # Setup
 My workflow is pretty straightforward:
