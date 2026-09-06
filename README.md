@@ -1,12 +1,9 @@
-# BirdFeeder 🐦📻
+# BirdFeeder
+An Android app to turn otherwise e-waste Android devices into RTSP audio streaming devices, built for [BirdNET-Go](https://github.com/birdnet-team/birdnet-go).
 
-This APK is intended to be used as a launcher to turn cheap Android phones into RTSP stream sources, primarily for consumption by **BirdNET-Go**.
+**BirdFeeder** is a single apk that runs as the device launcher, creates an uncompressed PCM RTSP stream locally on the phone upon launch or boot, and cuts out the need for MediaMTX or Termux altogether.
 
-I use <$25 Pixel phones from eBay for wildlife and bird call monitoring. Since I recently blocked these devices entirely from Internet access, I found my previous Termux setup to be clunky. My previous workflow with Termux had all devices streaming to a MediaMTX server, then BirdNET-Go pulled the audio from that. 
-
-**BirdFeeder** replaces that entire chain: this single APK runs as the device launcher, creates an uncompressed PCM RTSP stream locally on the phone upon launch or boot, and cuts out the need for MediaMTX or Termux altogether.
-
-*(Note: If you prefer using easily editable shell scripts and Termux instead of a standalone APK, check out my script-based repository: [BirdFeeder_Termux](https://github.com/KJ7PPK/BirdFeeder_Termux).)*
+*(Note: BirdFeeder was previously built on Termux and scripts. If you prefer that method, I've moved it here: [BirdFeeder_Termux](https://github.com/KJ7PPK/BirdFeeder_Termux)*
 
 ---
 
@@ -38,10 +35,10 @@ I use <$25 Pixel phones from eBay for wildlife and bird call monitoring. Since I
 
 | Device Model | Android Version | Lock / Variant Status | OS / Firmware Notes |
 | :--- | :--- | :--- | :--- |
+| **Pixel 2** | Android 15 | Unlocked | LineageOS 22.2 (`NIGHTLY-walleye`) |
 | **Pixel 3 XL** | Android 12 | MDM-Locked | Stock Google ROM |
 | **Pixel 3** | Android 12 | MDM-Locked | Stock Google ROM |
-| **Pixel 2** | Android 15 | Unlocked | LineageOS 22.2 (`NIGHTLY-walleye`) |
-| **Moto G Stylus (2022, XT2211-1)** | Android 12 | Cricket Variant | Stock Motorola ROM |
+| **Moto G Stylus (XT2211-1)** | Android 12 | Cricket Variant | Stock Motorola ROM |
 
 ---
 
@@ -68,7 +65,7 @@ My workflow for setting up a device:
 
 ## 🌐 WAN-Blocked Devices
 
-Android resists staying connected to Wi-Fi networks that do not provide WAN/internet access. To run devices on an air-gapped or WAN-blocked local network:
+Android resists staying connected to Wi-Fi networks that do not provide WAN/internet access. To run devices on an air-gapped or WAN-blocked local network, a few extra steps are needed:
 
 1. **Disable Captive Portal Checks via ADB:**
    ```bash
@@ -83,21 +80,14 @@ Android resists staying connected to Wi-Fi networks that do not provide WAN/inte
 ---
 
 ## 🎧 Client Playback & Integration
+### BirdNET-Go
+Add the RTSP URL displayed in BirdFeeder to your Streams tab in BirdNET-GO, example:
+<img width="1340" height="675" alt="image" src="https://github.com/user-attachments/assets/00126e5f-4dde-4c76-a52d-834231f3d00d" />
 
-### `ffplay` / `ffmpeg`
+
+### `ffplay` / `ffmpeg` (for general testing)
 ```bash
 ffplay -rtsp_transport tcp rtsp://<device-ip>:8554/live
-```
-
-### BirdNET-Go / `go2rtc`
-```yaml
-stream:
-  url: "rtsp://<device-ip>:8554/live"
-  ffmpeg_input_options: "-rtsp_transport tcp"
-```
-Or with `go2rtc`:
-```text
-rtsp://<device-ip>:8554/live#transport=tcp
 ```
 
 ---
