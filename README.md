@@ -1,19 +1,17 @@
 # BirdFeeder
-An Android app to turn otherwise e-waste Android devices into RTSP audio streaming devices, built for [BirdNET-Go](https://github.com/birdnet-team/birdnet-go).
+Turns Android phones into audio sources, built for [BirdNET-Go](https://github.com/tphakala/birdnet-go).
 
-**BirdFeeder** is a single apk that runs as the device launcher, creates an uncompressed PCM RTSP stream locally on the phone upon launch or boot, and cuts out the need for MediaMTX or Termux altogether.
-
-*(Note: BirdFeeder was previously built on Termux and scripts. If you prefer that method, I've moved it here: [BirdFeeder_Termux](https://github.com/KJ7PPK/BirdFeeder_Termux)*
+**BirdFeeder** is a single apk that can run as the default launcher, creates an uncompressed PCM RTSP stream locally upon launch or boot. *(Note: BirdFeeder was previously built on Termux and scripts. If you prefer that method, I've moved it here: [BirdFeeder_Termux](https://github.com/KJ7PPK/BirdFeeder_Termux)*
 
 ---
 
 ## 🚀 Features
 
 * **Auto-Stream on Boot & Launch ("Plug & Stream"):** Automatically starts the RTSP stream as soon as the app opens or the phone reboots/powers on.
-* **Launcher Replacement:** Acts as an Android Home Launcher (`android.intent.category.HOME`) for dedicated kiosk setups.
+* **Launcher Replacement:** Acts as an Android Home Launcher (`android.intent.category.HOME`) for dedicated setups.
 * **Network Auto-Recovery:** Automatically handles network drops, interface changes, and IP assignments on local Wi-Fi.
 * **Uncompressed L16 PCM Audio:** Streams raw 48kHz 16-bit Mono PCM audio directly for maximum recognition accuracy.
-* **Hardware Pre-Amp Boost:** Defaults to hardware-boosted microphone input (`AudioSource.MIC`) for capturing distant outdoor sounds, with an option for **Raw (Unprocessed)** audio.
+* **Hardware Pre-Amp Boost:** Defaults to hardware-boosted microphone input (`AudioSource.MIC`) for capturing distant outdoor sounds, with an option for **Raw (Unprocessed)** audio. Note: Raw audio is not amplified, YMMV.
 * **Extended Gain Adjuster:** Digital soft-clipping gain slider adjustable up to **2,000% (20x)**.
 * **Single-Screen UI:** Compact single-screen layout with live audio visualizer and controls.
 * **Battery Saver Exemption:** Includes Doze mode exemption so Android never kills the background stream service.
@@ -35,22 +33,22 @@ An Android app to turn otherwise e-waste Android devices into RTSP audio streami
 
 | Device Model | Android Version | Lock / Variant Status | OS / Firmware Notes |
 | :--- | :--- | :--- | :--- |
-| **Pixel 2** | Android 15 | Unlocked | LineageOS 22.2 (`NIGHTLY-walleye`) |
-| **Pixel 3 XL** | Android 12 | MDM-Locked | Stock Google ROM |
-| **Pixel 3** | Android 12 | MDM-Locked | Stock Google ROM |
-| **Moto G Stylus (XT2211-1)** | Android 12 | Cricket Variant | Stock Motorola ROM |
+| **Google Pixel 2** | Android 15 | Unlocked | LineageOS 22.2 |
+| **Google Pixel 3** | Android 12 | MDM-Locked | Stock Google ROM |
+| **Google Pixel 3 XL** | Android 12 | MDM-Locked | Stock Google ROM |
+| **Motorola Moto G Stylus (2022)** | Android 12 | Cricket-Locked | Stock Motorola ROM |
 
 ---
 
-## 🛠️ Device Preparation & Debloating
-
-My workflow for setting up a device:
+## 🛠️ Device Preparation/Debloating
+Debloating is optional, but recommended. Here's the workflow I have used on all devices listed above:
 
 1. **Factory Reset:** Perform a full factory reset on the device.
 2. **Initial Setup:** Complete the setup wizard without connecting to Wi-Fi or cellular networks.
 3. **Debloat (UAD-NG):** Use [Universal Android Debloater (UAD-NG)](https://github.com/0x10f8/Universal-Android-Debloater-Next-Generation) on the default **"recommended"** list.
    * In addition to the recommended list, also remove `com.google.android.setupwizard` and `com.android.captiveportallogin`.
-4. **Suppress System Error Dialogs:** When debloating system packages on stock Android, background services occasionally trigger popup error dialogs ("keeps stopping"). Run these two commands over ADB to suppress all crash and ANR popups globally:
+   * This would be the time to remove managed device packages for carrier-locked phones.
+4. **Suppress System Error Dialogs:** When debloating system packages on stock Android, background services can occasionally trigger popup error dialogs ("keeps stopping"). Run these two commands over ADB to suppress all crash and ANR popups globally:
    ```bash
    adb shell settings put global show_first_crash_dialog 0
    adb shell settings put global show_anr_dialog 0
@@ -60,6 +58,18 @@ My workflow for setting up a device:
    adb install -r app-release.apk
    ```
 6. **Set Launcher & Battery Exemption:** Open BirdFeeder, tap **Set Home Launcher** to set it as the default home app, and tap **Never Kill (Battery Limit)** to grant background execution.
+
+---
+## 🎧 Client Playback & Integration
+### BirdNET-Go
+Add the RTSP URL displayed in the BirdFeeder app to your Streams tab in BirdNET-GO, example:
+<img width="1340" height="675" alt="image" src="https://github.com/user-attachments/assets/00126e5f-4dde-4c76-a52d-834231f3d00d" />
+
+
+### `ffplay` / `ffmpeg` (for general testing if needed)
+```bash
+ffplay -rtsp_transport tcp rtsp://<device-ip>:8554/live
+```
 
 ---
 
@@ -79,22 +89,9 @@ Android resists staying connected to Wi-Fi networks that do not provide WAN/inte
 
 ---
 
-## 🎧 Client Playback & Integration
-### BirdNET-Go
-Add the RTSP URL displayed in BirdFeeder to your Streams tab in BirdNET-GO, example:
-<img width="1340" height="675" alt="image" src="https://github.com/user-attachments/assets/00126e5f-4dde-4c76-a52d-834231f3d00d" />
-
-
-### `ffplay` / `ffmpeg` (for general testing)
-```bash
-ffplay -rtsp_transport tcp rtsp://<device-ip>:8554/live
-```
-
----
-
 ## 📜 Credits & Acknowledgments
 
-* **[BirdNET-Go](https://github.com/birdnet-team/birdnet-go):** The open-source bird sound identification system that this app streams audio to.
+* **[BirdNET-Go](https://github.com/tphakala/birdnet-go):** The open-source bird sound identification system that this app streams audio to.
 * **[BirdFeeder_Termux](https://github.com/KJ7PPK/BirdFeeder_Termux):** The original shell script and Termux-based audio streaming implementation.
 * **[FFmpeg](https://ffmpeg.org/):** The multimedia framework used for RTSP playback testing and stream verification.
 * **[go2rtc](https://github.com/AlexxIT/go2rtc):** High-performance streaming engine used for RTSP/WebRTC ingestion.
