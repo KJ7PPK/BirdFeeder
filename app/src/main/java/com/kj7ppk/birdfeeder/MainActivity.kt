@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -117,10 +118,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.FlutterDash,
+                        painter = painterResource(id = R.drawable.placeholder),
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(36.dp)
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(56.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
