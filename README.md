@@ -1,7 +1,7 @@
-# BirdFeeder
-Turns Android phones into audio sources, built for [BirdNET-Go](https://github.com/tphakala/birdnet-go).
+# BirdFeeder - Turn Android phones into RTSP Microphones
+BirdFeeder is a single APK that creates an uncompressed PCM audio stream using the device's built-in microphones. Created for use with [BirdNET-Go](https://github.com/tphakala/birdnet-go), but could be utilized for other scenarios where you need an RTSP audio stream.
 
-**BirdFeeder** is a single apk that can run as the default launcher, creates an uncompressed PCM RTSP stream locally upon launch or boot. *(Note: BirdFeeder was previously built on Termux and scripts. If you prefer that method, I've moved it here: [BirdFeeder_Termux](https://github.com/KJ7PPK/BirdFeeder_Termux)*
+*(Note: BirdFeeder was previously built on a Termux stack and scripts. If you prefer that method, I've archived it here: [BirdFeeder_Termux](https://github.com/KJ7PPK/BirdFeeder_Termux)*)
 
 ---
 
@@ -53,9 +53,9 @@ Debloating is optional, but recommended. Here's the workflow I have used on all 
    adb shell settings put global show_first_crash_dialog 0
    adb shell settings put global show_anr_dialog 0
    ```
-5. **Install BirdFeeder:** Sideload the signed release APK over ADB:
+5. **Install or Update BirdFeeder:** Sideload the signed release APK over ADB:
    ```bash
-   adb install -r app-release.apk
+   adb install -r BirdFeeder_1.0.apk (or whatever the current apk release name is)
    ```
 6. **Set Launcher & Battery Exemption:** Open BirdFeeder, tap **Set Home Launcher** to set it as the default home app, and tap **Never Kill (Battery Limit)** to grant background execution.
 
