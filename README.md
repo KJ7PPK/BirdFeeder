@@ -1,5 +1,5 @@
 # BirdFeeder - Turn Android phones into RTSP Microphones
-BirdFeeder is a single APK that creates an uncompressed PCM audio stream using the device's built-in microphones. Created for use with [BirdNET-Go](https://github.com/tphakala/birdnet-go), but could be utilized for other scenarios where you need an RTSP audio stream.
+BirdFeeder is a single APK that creates an uncompressed PCM audio stream using the device's built-in microphones. Created for use with [BirdNET-Go](https://github.com/tphakala/birdnet-go), but could be utilized for other scenarios where you need an RTSP audio stream. **Compatible with Android 8 and up.**
 
 *(Note: BirdFeeder was previously built on a Termux stack and scripts. If you prefer that method, I've archived it here: [BirdFeeder_Termux](https://github.com/KJ7PPK/BirdFeeder_Termux)*)
 
@@ -33,10 +33,11 @@ BirdFeeder is a single APK that creates an uncompressed PCM audio stream using t
 
 | Device Model | Android Version | Lock / Variant Status | OS / Firmware Notes |
 | :--- | :--- | :--- | :--- |
-| **Google Pixel 2** | Android 15 | Unlocked | LineageOS 22.2 |
-| **Google Pixel 3** | Android 12 | MDM-Locked | Stock Google ROM |
-| **Google Pixel 3 XL** | Android 12 | MDM-Locked | Stock Google ROM |
-| **Motorola Moto G Stylus (2022)** | Android 12 | Cricket-Locked | Stock Motorola ROM |
+| **Google Pixel 2** | Android 15 | Unlocked, Rooted | LineageOS 22.2 |
+| **Google Pixel 3** | Android 12 | MDM-Locked | OEM ROM |
+| **Google Pixel 3 XL** | Android 12 | MDM-Locked | OEM ROM |
+| **Motorola Moto G Stylus (2022)** | Android 12 | Carrier-Locked | OEM ROM |
+| **Samsung Galaxy S9** | Android 10 | OEM-Locked | OEM ROM |
 
 ---
 
