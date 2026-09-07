@@ -37,6 +37,7 @@ BirdFeeder is a single APK that creates an uncompressed PCM audio stream using t
 | **Google Pixel 3** | Android 12 | MDM-Locked | OEM ROM |
 | **Google Pixel 3 XL** | Android 12 | MDM-Locked | OEM ROM |
 | **Motorola Moto G Stylus (2022)** | Android 12 | Carrier-Locked | OEM ROM |
+| **OnePlus Nord N200 5G (DE2118)** | Android 12 | Unlocked | OEM OxygenOS ROM |
 | **Samsung Galaxy S9** | Android 10 | OEM-Locked | OEM ROM |
 
 ---
