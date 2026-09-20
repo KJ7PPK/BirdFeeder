@@ -10,18 +10,19 @@ import com.kj7ppk.birdfeeder.data.SettingsManager
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
-        if (action == Intent.ACTION_BOOT_COMPLETED ||
-            action == Intent.ACTION_POWER_CONNECTED ||
-            action == Intent.ACTION_MY_PACKAGE_REPLACED
+        if ((action == Intent.ACTION_BOOT_COMPLETED) ||
+            (action == Intent.ACTION_POWER_CONNECTED) ||
+            (action == Intent.ACTION_MY_PACKAGE_REPLACED)
         ) {
             val settings = SettingsManager(context)
-            if (settings.autoStreamOnLaunch.value) {
+            if (settings.isStreamingEnabled.value) {
                 // Start RTSP foreground audio streaming service
                 AudioStreamingService.start(
                     context = context,
                     port = 8554,
                     device = null,
-                    audioSource = settings.audioSource.value
+                    audioSource = settings.audioSource.value,
+                    audioCodec = settings.audioCodec.value,
                 )
 
                 // Launch MainActivity

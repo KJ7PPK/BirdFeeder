@@ -4,5 +4,5 @@
         android:width="64dp"
         android:height="64dp"
         android:gravity="center"
-        android:drawable="@drawable/placeholder" />
+        android:drawable="@drawable/ic_bird_logo" />
 </layer-list>

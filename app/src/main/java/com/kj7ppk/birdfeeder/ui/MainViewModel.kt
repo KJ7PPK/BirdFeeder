@@ -1,34 +1,38 @@
 package com.kj7ppk.birdfeeder.ui
 
+import android.annotation.SuppressLint
 import android.app.Application
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.PackageManager
+import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
-import android.media.MediaRecorder
-import android.net.Uri
-import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import android.provider.Settings
+import android.widget.Toast
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kj7ppk.birdfeeder.audio.AudioStreamingService
 import com.kj7ppk.birdfeeder.data.SettingsManager
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.net.InetAddress
+import java.net.NetworkInterface
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val audioManager = application.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     val settings = SettingsManager(application)
 
-    val autoStreamOnLaunch: StateFlow<Boolean> = settings.autoStreamOnLaunch
     val selectedAudioSource: StateFlow<Int> = settings.audioSource
+    val selectedAudioCodec: StateFlow<String> = settings.audioCodec
 
-    private val _isStreaming = MutableStateFlow(false)
+    private val _isStreaming = MutableStateFlow(value = false)
     val isStreaming: StateFlow<Boolean> = _isStreaming.asStateFlow()
 
     private val _audioLevels = MutableStateFlow(emptyList<Float>())
@@ -37,17 +41,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _rtspUrl = MutableStateFlow("")
     val rtspUrl: StateFlow<String> = _rtspUrl.asStateFlow()
 
-    private val _audioSourceMode = MutableStateFlow("")
-    val audioSourceMode: StateFlow<String> = _audioSourceMode.asStateFlow()
-
-    private val _foundMicIds = MutableStateFlow(emptyList<Int>())
-    val foundMicIds: StateFlow<List<Int>> = _foundMicIds.asStateFlow()
-
     private val _gain = MutableStateFlow(AudioStreamingService.currentGain)
     val gain: StateFlow<Float> = _gain.asStateFlow()
-
-    private val _port = MutableStateFlow(8554)
-    val port: StateFlow<Int> = _port.asStateFlow()
 
     private val _selectedMic = MutableStateFlow<AudioDeviceInfo?>(null)
     val selectedMic: StateFlow<AudioDeviceInfo?> = _selectedMic.asStateFlow()
@@ -55,8 +50,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _availableMics = MutableStateFlow<List<AudioDeviceInfo?>>(listOf(null))
     val availableMics: StateFlow<List<AudioDeviceInfo?>> = _availableMics.asStateFlow()
 
+    private val _isHomeLauncher = MutableStateFlow(value = false)
+    val isHomeLauncher: StateFlow<Boolean> = _isHomeLauncher.asStateFlow()
+
+    private val _isBatteryExempt = MutableStateFlow(value = false)
+    val isBatteryExempt: StateFlow<Boolean> = _isBatteryExempt.asStateFlow()
+
     private var hasAutoStarted = false
 
+    private val audioDeviceCallback = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
+            updateAvailableMics()
+        }
+
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
+            updateAvailableMics()
+        }
+    }
+
+    @SuppressLint("StaticFieldLeak")
     private var service: AudioStreamingService? = null
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -72,13 +84,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         updateAvailableMics()
+        updateSystemSettingsStatus(getApplication())
+        try {
+            audioManager.registerAudioDeviceCallback(audioDeviceCallback, null)
+        } catch (_: Exception) {}
         bindService()
         
         viewModelScope.launch {
-            if (settings.autoStreamOnLaunch.value && !hasAutoStarted) {
+            if (settings.isStreamingEnabled.value && !hasAutoStarted) {
                 hasAutoStarted = true
-                toggleStreaming(true)
+                toggleStreaming(enabled = true)
             }
+        }
+    }
+
+    fun updateSystemSettingsStatus(context: Context) {
+        _isHomeLauncher.value = isDefaultLauncher(context)
+        _isBatteryExempt.value = isIgnoringBatteryOptimizations(context)
+    }
+
+    private fun isDefaultLauncher(context: Context): Boolean {
+        return try {
+            val intent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+            }
+            val resolveInfo = context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            resolveInfo?.activityInfo?.packageName == context.packageName
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
+        return try {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            pm.isIgnoringBatteryOptimizations(context.packageName)
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -98,44 +140,84 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch {
                 s.rtspUrl.collect { _rtspUrl.value = it }
             }
-            viewModelScope.launch {
-                s.audioSourceMode.collect { _audioSourceMode.value = it }
-            }
-            viewModelScope.launch {
-                s.foundMicIds.collect { _foundMicIds.value = it }
-            }
         }
     }
 
     fun updateAvailableMics() {
         val inputs = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
         val physicalMics = inputs.filter { 
-            it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC || 
-            it.type == AudioDeviceInfo.TYPE_USB_DEVICE ||
-            it.type == AudioDeviceInfo.TYPE_USB_HEADSET
+            (it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC) || 
+            (it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET) ||
+            (it.type == AudioDeviceInfo.TYPE_USB_DEVICE) ||
+            (it.type == AudioDeviceInfo.TYPE_USB_HEADSET) ||
+            (it.type == AudioDeviceInfo.TYPE_USB_ACCESSORY) ||
+            (it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO)
         }
         _availableMics.value = listOf(null) + physicalMics
+
+        val currentSelected = _selectedMic.value
+        if ((currentSelected != null) && physicalMics.none { it.id == currentSelected.id }) {
+            setSelectedMic(null)
+        }
     }
 
-    fun toggleStreaming(enabled: Boolean) {
+    private fun getLocalIpAddress(): String? {
+        try {
+            val interfaces = NetworkInterface.getNetworkInterfaces() ?: return null
+            while (interfaces.hasMoreElements()) {
+                val iface = interfaces.nextElement()
+                val addresses = iface.inetAddresses
+                while (addresses.hasMoreElements()) {
+                    val addr = addresses.nextElement()
+                    if ((!addr.isLoopbackAddress) && (addr is InetAddress)) {
+                        val ip = addr.hostAddress
+                        if ((ip != null) && (ip.indexOf(':') < 0) && (ip != "0.0.0.0")) return ip
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        return null
+    }
+
+    fun toggleStreaming(enabled: Boolean, context: Context? = null) {
         if (enabled) {
+            val ip = getLocalIpAddress()
+            if (ip == null) {
+                settings.setStreamingEnabled(value = false)
+                _isStreaming.value = false
+                context?.let {
+                    Toast.makeText(
+                        it,
+                        "No network IP address assigned. Connect to Wi-Fi or Ethernet to stream.",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+                return
+            }
+            settings.setStreamingEnabled(value = true)
             AudioStreamingService.start(
-                getApplication(),
-                _port.value,
-                _selectedMic.value,
-                selectedAudioSource.value
+                context = getApplication(),
+                port = 8554,
+                device = _selectedMic.value,
+                audioSource = selectedAudioSource.value,
+                audioCodec = selectedAudioCodec.value,
             )
         } else {
+            settings.setStreamingEnabled(value = false)
             AudioStreamingService.stop(getApplication())
         }
     }
 
-    fun setAutoStreamOnLaunch(value: Boolean) {
-        settings.setAutoStreamOnLaunch(value)
-    }
-
     fun setSelectedAudioSource(source: Int) {
         settings.setAudioSource(source)
+        if (_isStreaming.value) {
+            toggleStreaming(false)
+            toggleStreaming(true)
+        }
+    }
+
+    fun setSelectedAudioCodec(codec: String) {
+        settings.setAudioCodec(codec)
         if (_isStreaming.value) {
             toggleStreaming(false)
             toggleStreaming(true)
@@ -147,12 +229,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AudioStreamingService.currentGain = value
     }
 
-    fun setPort(value: Int) {
-        _port.value = value
-    }
-
     fun setSelectedMic(device: AudioDeviceInfo?) {
         _selectedMic.value = device
+        if (_isStreaming.value) {
+            toggleStreaming(false)
+            toggleStreaming(true)
+        }
     }
 
     fun openHomeSettings(context: Context) {
@@ -169,21 +251,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    @SuppressLint("BatteryLife")
     fun requestBatteryOptimizationExemption(context: Context) {
         try {
             val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
             if (!pm.isIgnoringBatteryOptimizations(context.packageName)) {
                 val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                    data = Uri.parse("package:${context.packageName}")
+                    data = "package:${context.packageName}".toUri()
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            } else {
+                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(intent)
             }
         } catch (_: Exception) {}
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        getApplication<Application>().unbindService(connection)
     }
 }
