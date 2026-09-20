@@ -1,6 +1,7 @@
 package com.kj7ppk.birdfeeder.audio
 
 import android.util.Log
+import com.kj7ppk.birdfeeder.data.SettingsManager
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStream
@@ -9,7 +10,10 @@ import java.net.Socket
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 
-class SimpleRtspServer(private val port: Int) {
+class SimpleRtspServer(
+    private val port: Int,
+    private val codecKey: String = SettingsManager.CODEC_AAC_128,
+) {
 
     private var serverSocket: ServerSocket? = null
     private val isRunning = AtomicBoolean(false)
@@ -26,21 +30,23 @@ class SimpleRtspServer(private val port: Int) {
     fun start() {
         if (isRunning.get()) return
         isRunning.set(true)
-        Thread({
-            try {
-                serverSocket = ServerSocket(port)
-                Log.i(TAG, "SimpleRtspServer listening on port $port")
-                while (isRunning.get()) {
-                    val socket = serverSocket?.accept() ?: break
-                    Log.i(TAG, "Client connected from ${socket.inetAddress.hostAddress}")
-                    val session = ClientSession(socket)
-                    clients.add(session)
-                    Thread(session, "RtspClientThread").start()
+        Thread(
+            {
+                try {
+                    serverSocket = ServerSocket(port)
+                    Log.i(TAG, "SimpleRtspServer listening on port $port (Codec: $codecKey)")
+                    while (isRunning.get()) {
+                        val socket = serverSocket?.accept() ?: break
+                        Log.i(TAG, "Client connected from ${socket.inetAddress.hostAddress}")
+                        val session = ClientSession(socket)
+                        clients.add(session)
+                        Thread(session, "RtspClientThread").start()
+                    }
+                } catch (_: Exception) {
                 }
-            } catch (e: Exception) {
-                if (isRunning.get()) Log.e(TAG, "Server socket error", e)
-            }
-        }, "SimpleRtspServerThread").start()
+            },
+            "SimpleRtspServerThread",
+        ).start()
     }
 
     fun stop() {
@@ -54,7 +60,7 @@ class SimpleRtspServer(private val port: Int) {
     }
 
     fun sendPcmAudio(pcmShorts: ShortArray, readCount: Int) {
-        if (!isRunning.get() || clients.isEmpty() || readCount <= 0) return
+        if ((!isRunning.get()) || clients.isEmpty() || (readCount <= 0)) return
 
         val pcmBytesLength = readCount * 2
         val rtpPacketSize = 12 + pcmBytesLength
@@ -86,14 +92,68 @@ class SimpleRtspServer(private val port: Int) {
         // L16 requires Big-Endian 16-bit PCM bytes
         for (i in 0 until readCount) {
             val sample = pcmShorts[i].toInt()
-            rtpPacket[12 + i * 2] = ((sample shr 8) and 0xFF).toByte()     // MSB
-            rtpPacket[12 + i * 2 + 1] = (sample and 0xFF).toByte()         // LSB
+            rtpPacket[12 + (i * 2)] = ((sample shr 8) and 0xFF).toByte()     // MSB
+            rtpPacket[12 + (i * 2) + 1] = (sample and 0xFF).toByte()         // LSB
         }
 
         // TCP Interleaved Frame Header ($ + Channel 0 + 16-bit length)
         val frameHeader = ByteArray(4)
         frameHeader[0] = 0x24.toByte() // '$'
         frameHeader[1] = 0x00.toByte() // Channel 0 (Audio RTP)
+        frameHeader[2] = ((rtpPacketSize shr 8) and 0xFF).toByte()
+        frameHeader[3] = (rtpPacketSize and 0xFF).toByte()
+
+        for (client in clients) {
+            if (client.isStreaming) {
+                client.sendInterleavedFrame(frameHeader, rtpPacket)
+            }
+        }
+    }
+
+    fun sendAacAudio(aacData: ByteArray, aacSize: Int, sampleDelta: Int = 1024) {
+        if ((!isRunning.get()) || clients.isEmpty() || (aacSize <= 0)) return
+
+        // RTP Payload for AAC-hbr (RFC 3640 / RFC 6416)
+        val rtpPacketSize = 16 + aacSize
+        val rtpPacket = ByteArray(rtpPacketSize)
+
+        // RTP Header
+        rtpPacket[0] = 0x80.toByte() // Version 2
+        rtpPacket[1] = (0x80 or 96).toByte() // Marker bit set + Payload Type 96
+
+        sequenceNumber = (sequenceNumber + 1) and 0xFFFF
+        rtpPacket[2] = ((sequenceNumber shr 8) and 0xFF).toByte()
+        rtpPacket[3] = (sequenceNumber and 0xFF).toByte()
+
+        // Timestamp (32-bit sample count @ 48kHz)
+        val rtpTimestamp = (sampleCount and 0xFFFFFFFFL).toInt()
+        sampleCount += sampleDelta
+        rtpPacket[4] = ((rtpTimestamp shr 24) and 0xFF).toByte()
+        rtpPacket[5] = ((rtpTimestamp shr 16) and 0xFF).toByte()
+        rtpPacket[6] = ((rtpTimestamp shr 8) and 0xFF).toByte()
+        rtpPacket[7] = (rtpTimestamp and 0xFF).toByte()
+
+        // SSRC
+        rtpPacket[8] = ((ssrc shr 24) and 0xFF).toByte()
+        rtpPacket[9] = ((ssrc shr 16) and 0xFF).toByte()
+        rtpPacket[10] = ((ssrc shr 8) and 0xFF).toByte()
+        rtpPacket[11] = (ssrc and 0xFF).toByte()
+
+        // AU Header Section (16-bit AU-headers-length = 16 bits = 2 bytes)
+        rtpPacket[12] = 0x00.toByte()
+        rtpPacket[13] = 0x10.toByte()
+        // AU Header 0 (13-bit AAC frame size + 3-bit AU index = aacSize shl 3)
+        val auHeader = aacSize shl 3
+        rtpPacket[14] = ((auHeader shr 8) and 0xFF).toByte()
+        rtpPacket[15] = (auHeader and 0xFF).toByte()
+
+        // AAC payload
+        System.arraycopy(aacData, 0, rtpPacket, 16, aacSize)
+
+        // TCP Interleaved Frame Header ($ + Channel 0 + 16-bit length)
+        val frameHeader = ByteArray(4)
+        frameHeader[0] = 0x24.toByte() // '$'
+        frameHeader[1] = 0x00.toByte() // Channel 0
         frameHeader[2] = ((rtpPacketSize shr 8) and 0xFF).toByte()
         frameHeader[3] = (rtpPacketSize and 0xFF).toByte()
 
@@ -133,9 +193,8 @@ class SimpleRtspServer(private val port: Int) {
 
                     val tokens = requestLine.split(" ")
                     if (tokens.size < 2) continue
-                    val method = tokens[0].uppercase()
 
-                    when (method) {
+                    when (tokens[0].uppercase()) {
                         "OPTIONS" -> handleOptions(cSeq)
                         "DESCRIBE" -> handleDescribe(cSeq)
                         "SETUP" -> handleSetup(cSeq)
@@ -157,7 +216,7 @@ class SimpleRtspServer(private val port: Int) {
             try {
                 output?.write(response.toByteArray(Charsets.UTF_8))
                 output?.flush()
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 close()
             }
         }
@@ -171,14 +230,26 @@ class SimpleRtspServer(private val port: Int) {
 
         private fun handleDescribe(cSeq: String) {
             val ip = socket.localAddress?.hostAddress ?: "0.0.0.0"
-            val sdp = "v=0\r\n" +
-                    "o=- 0 0 IN IP4 $ip\r\n" +
-                    "s=BirdFeeder Audio\r\n" +
-                    "t=0 0\r\n" +
-                    "a=recvonly\r\n" +
-                    "m=audio 0 RTP/AVP 11\r\n" +
-                    "a=rtpmap:11 L16/48000/1\r\n" +
-                    "a=control:trackID=0\r\n"
+            val sdp = if (codecKey == SettingsManager.CODEC_PCM_768) {
+                "v=0\r\n" +
+                        "o=- 0 0 IN IP4 $ip\r\n" +
+                        "s=BirdFeeder Audio\r\n" +
+                        "t=0 0\r\n" +
+                        "a=recvonly\r\n" +
+                        "m=audio 0 RTP/AVP 11\r\n" +
+                        "a=rtpmap:11 L16/48000/1\r\n" +
+                        "a=control:trackID=0\r\n"
+            } else {
+                "v=0\r\n" +
+                        "o=- 0 0 IN IP4 $ip\r\n" +
+                        "s=BirdFeeder Audio\r\n" +
+                        "t=0 0\r\n" +
+                        "a=recvonly\r\n" +
+                        "m=audio 0 RTP/AVP 96\r\n" +
+                        "a=rtpmap:96 mpeg4-generic/48000/1\r\n" +
+                        "a=fmtp:96 streamtype=5;profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1188\r\n" +
+                        "a=control:trackID=0\r\n"
+            }
 
             val resp = "RTSP/1.0 200 OK\r\n" +
                     "CSeq: $cSeq\r\n" +
@@ -203,7 +274,7 @@ class SimpleRtspServer(private val port: Int) {
                     "Range: ntp=0.000-\r\n\r\n"
             sendResponse(resp)
             isStreaming = true
-            Log.i(TAG, "Client active and playing L16 PCM audio stream")
+            Log.i(TAG, "Client active and playing RTSP audio stream ($codecKey)")
         }
 
         private fun handleTeardown(cSeq: String) {
@@ -220,7 +291,7 @@ class SimpleRtspServer(private val port: Int) {
                     output?.write(payload)
                     output?.flush()
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 close()
             }
         }
