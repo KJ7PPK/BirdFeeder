@@ -1,12 +1,35 @@
-# BirdFeeder - Turn Android phones into RTSP Microphones
-BirdFeeder is a single APK that creates a dedicated RTSP audio stream using the device's built-in, 3.5mm, or USB microphones. Created for use with [BirdNET-Go](https://github.com/tphakala/birdnet-go), but could be utilized for other scenarios where you need a low-latency RTSP audio stream. **Compatible with Android 8 and up.**
+<img width="708" height="304" alt="birdfeeder_banner" src="https://github.com/user-attachments/assets/bfa74a93-b4dd-4dc9-bae3-894cb13eb89b" />
+
+BirdFeeder is a single APK compatible with Android 8+ that creates an RTSP audio source using built-in and/or external microphones. Designed with [BirdNET-Go](https://github.com/tphakala/birdnet-go) in mind, but generally compatible with any RTSP consumer. 
+
+> Old Android phones are cheaper, easier to deploy, more reliable, and deliver better sound quality than I was able to get within an enthusiast budget from SBC solutions. I am not a developer and not a fan of general or generative AI, but I feel obliged to disclose that I use Gemini in Android Studio for this app. I don't want to learn a new domain from scratch to fulfill the need for a single, single-purpose application. As such, this app is and will always be free and open source. Please provide feedback on device compatibility, bugs, feature requests, etc. as much as you'd like! I hope you find it useful in some way.
+> 
+> - Chris (KJ7PPK)
 
 ---
 
-## 🚀 Features
+## 🛠️ Installation / Device Setup
+If you just want to occasionally stream to BirdNET-Go, all you need to do is install and run the app. BirdFeeder is designed with single-purpose use in mind, however. The key to deploying a phone as an appliance is proper debloating, removing MDM packages, etc. Debloating is optional, but recommended. Here's the workflow I follow:
 
-* **Auto-Stream & Remembered State:** Automatically starts the RTSP stream on boot or app launch whenever streaming was previously enabled.
-* **Hardware AAC-LC & Lossless PCM Encoding:** Choose between hardware-accelerated **AAC-LC (128 kbps default)** for 85%+ network bandwidth savings and reduced device heat, or uncompressed **L16 PCM (768 kbps)**.
+1. **Factory Reset:** Perform a full factory reset on the device.
+2. **Initial Setup:** Complete the setup wizard without connecting to Wi-Fi or cellular networks.
+3. **Debloat (UAD-NG):** Use [Universal Android Debloater (UAD-NG)](https://github.com/0x10f8/Universal-Android-Debloater-Next-Generation) on the default **"recommended"** list.
+   * In addition to the recommended list, also remove `com.google.android.setupwizard` and `com.android.captiveportallogin`.
+   * Remove carrier-managed packages for carrier-locked phones.
+4. **Suppress System Error Dialogs:** Run these ADB commands to suppress crash and ANR popups globally:
+   ```bash
+   adb shell settings put global show_first_crash_dialog 0
+   adb shell settings put global show_anr_dialog 0
+   ```
+5. **Install or Update BirdFeeder:** Sideload the release APK over ADB:
+   ```bash
+   adb install -r BirdFeeder_1.2.apk
+   ```
+6. **Configure Recommended Settings:** Open BirdFeeder, toggle **Set Home Launcher** to set it as default home app, and toggle **Protect from Battery Saver** to grant background execution.
+
+---
+## Features
+* **Encoding Options:** Choose between hardware-accelerated **AAC-LC (128 kbps default)** for 85%+ network bandwidth savings and reduced device heat, or uncompressed **L16 PCM (768 kbps)**.
 * **Microphone Selection & Location Detection:** Route audio from specific physical microphones (`Built-in Mic - Bottom`, `Top`, `Back`, or `Combined Mics`), as well as plugged-in **3.5mm headset/microphones** and **USB audio interfaces**.
 * **Audio Processing Modes:** Select from 5 specialized DSP modes tuned for different acoustic environments:
   * **Basic AGC:** Standard hardware pre-amp boost with automatic gain control (300 Hz – 8 kHz).
@@ -39,36 +62,18 @@ BirdFeeder is a single APK that creates a dedicated RTSP audio stream using the 
 
 | Device Model | Android Version | Confirmed Version | Lock / Variant Status | OS / Firmware Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| **Google Pixel 3 XL** | Android 12 | **v1.2** | MDM-Locked | OEM ROM |
-| **Google Pixel 2** | Android 15 | v1.1 | Unlocked, Rooted | LineageOS 22.2 |
+| **Google Pixel 3 XL** | Android 12 | v1.2 | MDM-Locked | OEM ROM |
+| **Google Pixel 2** | Android 15 | v1.2 | Unlocked, Rooted | LineageOS 22.2 |
 | **Google Pixel 3** | Android 12 | v1.1 | MDM-Locked | OEM ROM |
 | **LG Stylo 5** | Android 9 | v1.1 | N/A | N/A |
 | **Motorola Moto G Stylus (2022)** | Android 12 | v1.1 | Carrier-Locked | OEM ROM |
 | **OnePlus Nord N200 5G (DE2118)** | Android 12 | v1.1 | Unlocked | OEM OxygenOS ROM |
-| **Samsung Galaxy S9** | Android 10 | v1.1 | OEM-Locked | OEM ROM |
+| **Samsung Galaxy S9** | Android 10 | v1.2 | OEM-Locked | OEM ROM |
+
+_Note:_ This is just a list of my devices and reports by others. Confirmed version is simply the latest version of BirdFeeder that I've deployed on the device. Most of my devices are dedicated to running BirdFeeder for BirdNET-Go, and are confined to comms with that server at a firewall level.
 
 ---
 
-## 🛠️ Device Preparation / Debloating
-Debloating is optional, but recommended. Here's the workflow used on all devices listed above:
-
-1. **Factory Reset:** Perform a full factory reset on the device.
-2. **Initial Setup:** Complete the setup wizard without connecting to Wi-Fi or cellular networks.
-3. **Debloat (UAD-NG):** Use [Universal Android Debloater (UAD-NG)](https://github.com/0x10f8/Universal-Android-Debloater-Next-Generation) on the default **"recommended"** list.
-   * In addition to the recommended list, also remove `com.google.android.setupwizard` and `com.android.captiveportallogin`.
-   * Remove carrier-managed packages for carrier-locked phones.
-4. **Suppress System Error Dialogs:** Run these ADB commands to suppress crash and ANR popups globally:
-   ```bash
-   adb shell settings put global show_first_crash_dialog 0
-   adb shell settings put global show_anr_dialog 0
-   ```
-5. **Install or Update BirdFeeder:** Sideload the release APK over ADB:
-   ```bash
-   adb install -r BirdFeeder_1.2.apk
-   ```
-6. **Configure Recommended Settings:** Open BirdFeeder, toggle **Set Home Launcher** to set it as default home app, and toggle **Protect from Battery Saver** to grant background execution.
-
----
 ## 🎧 Client Playback & Integration
 ### BirdNET-Go
 Add the RTSP URL displayed in the BirdFeeder app to your Streams tab in BirdNET-Go, example:
