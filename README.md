@@ -68,9 +68,10 @@ If you just want to occasionally stream to BirdNET-Go, all you need to do is ins
 | **LG Stylo 5** | Android 9 | v1.1 | N/A | N/A |
 | **Motorola Moto G Stylus (2022)** | Android 12 | v1.1 | Carrier-Locked | OEM ROM |
 | **OnePlus Nord N200 5G (DE2118)** | Android 12 | v1.1 | Unlocked | OEM OxygenOS ROM |
+| **Samsung Galaxy A10** | Android 11 | v1.2
 | **Samsung Galaxy S9** | Android 10 | v1.2 | OEM-Locked | OEM ROM |
 
-_Note:_ This is just a list of my devices and reports by others. Confirmed version is simply the latest version of BirdFeeder that I've deployed on the device. Most of my devices are dedicated to running BirdFeeder for BirdNET-Go, and are confined to comms with that server at a firewall level.
+_Note:_ This is just a list of my devices and reports by others. Confirmed version is latest version of BirdFeeder that I've deployed on the device. Most of my devices are dedicated to running BirdFeeder for BirdNET-Go, and are confined to comms with that server at a firewall level.
 
 ---
 
