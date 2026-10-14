@@ -223,6 +223,7 @@ class AudioStreamingService : Service() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        gain = SettingsManager(this).audioGain.value
         createNotificationChannel()
         updateEngineStatus()
     }
@@ -300,11 +301,11 @@ class AudioStreamingService : Service() {
         val newAudioCodec = intent?.getStringExtra("AUDIO_CODEC") ?: SettingsManager.CODEC_AAC_128
 
         val deviceId = intent?.getIntExtra("DEVICE_ID", -1) ?: -1
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         val newDevice = if (deviceId != -1) {
-            val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
             audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS).find { it.id == deviceId }
         } else {
-            null // Combined Mics
+            SettingsManager(this).findSavedMicrophone(audioManager)
         }
 
         if (isRunning.get()) {
@@ -403,7 +404,7 @@ class AudioStreamingService : Service() {
                 if ((outputBuffer != null) && ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) && (bufferInfo.size > 0)) {
                     val aacData = ByteArray(bufferInfo.size)
                     outputBuffer.position(bufferInfo.offset)
-                    outputBuffer.get(aacData)
+                    outputBuffer.get(aacData, 0, bufferInfo.size)
                     server.sendAacAudio(aacData, bufferInfo.size, readCount)
                 }
                 codec.releaseOutputBuffer(outputIndex, false)
