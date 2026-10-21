@@ -1,6 +1,5 @@
 package com.kj7ppk.birdfeeder.ui.theme
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -17,10 +16,10 @@ private val DarkColorScheme = darkColorScheme(
     onPrimary = DarkOnPrimary,
     primaryContainer = DarkPrimaryContainer,
     onPrimaryContainer = DarkOnPrimaryContainer,
-    secondary = SkyBlue,
-    tertiary = EarthyBrown,
-    background = Color(0xFF1A1C19),
-    surface = Color(0xFF1A1C19)
+    secondary = LightBirdBlue,
+    tertiary = DarkBirdBlue,
+    background = Color(0xFF101418),
+    surface = Color(0xFF101418),
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -28,21 +27,21 @@ private val LightColorScheme = lightColorScheme(
     onPrimary = LightOnPrimary,
     primaryContainer = LightPrimaryContainer,
     onPrimaryContainer = LightOnPrimaryContainer,
-    secondary = SkyBlue,
-    tertiary = EarthyBrown,
-    background = Color(0xFFFCFDF6),
-    surface = Color(0xFFFCFDF6)
+    secondary = LightBirdBlue,
+    tertiary = DarkBirdBlue,
+    background = Color(0xFFF6FAFE),
+    surface = Color(0xFFF6FAFE),
 )
 
 @Composable
 fun BirdFeederTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
-    content: @Composable () -> Unit
+    // Set default dynamicColor to false so system wallpaper color doesn't override the app brand theme
+    dynamicColor: Boolean = false,
+    content: @Composable () -> Unit,
 ) {
     val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+        dynamicColor && (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
@@ -54,6 +53,6 @@ fun BirdFeederTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
-        content = content
+        content = content,
     )
 }
