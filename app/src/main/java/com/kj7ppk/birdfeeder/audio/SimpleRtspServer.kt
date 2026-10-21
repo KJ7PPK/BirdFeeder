@@ -7,12 +7,15 @@ import java.io.InputStreamReader
 import java.io.OutputStream
 import java.net.ServerSocket
 import java.net.Socket
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 class SimpleRtspServer(
     private val port: Int,
     private val codecKey: String = SettingsManager.CODEC_AAC_128,
+    private val telemetryProvider: (() -> String)? = null,
 ) {
 
     private var serverSocket: ServerSocket? = null
@@ -37,6 +40,7 @@ class SimpleRtspServer(
                     Log.i(TAG, "SimpleRtspServer listening on port $port (Codec: $codecKey)")
                     while (isRunning.get()) {
                         val socket = serverSocket?.accept() ?: break
+                        socket.soTimeout = 15000 // 15 second read timeout
                         Log.i(TAG, "Client connected from ${socket.inetAddress.hostAddress}")
                         val session = ClientSession(socket)
                         clients.add(session)
@@ -167,15 +171,54 @@ class SimpleRtspServer(
     private inner class ClientSession(private val socket: Socket) : Runnable {
         @Volatile var isStreaming = false
         private var output: OutputStream? = null
+        private val frameQueue = ArrayBlockingQueue<ByteArray>(30) // Bounded non-blocking frame buffer
+        @Volatile private var isSessionActive = true
 
         override fun run() {
+            var senderThread: Thread? = null
             try {
                 val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
                 output = socket.getOutputStream()
 
+                // Dedicated non-blocking socket writer thread
+                senderThread = Thread({
+                    while (isSessionActive && isRunning.get() && !socket.isClosed) {
+                        try {
+                            val frame = frameQueue.poll(200, TimeUnit.MILLISECONDS) ?: continue
+                            output?.write(frame)
+                            output?.flush()
+                        } catch (_: Exception) {
+                            break
+                        }
+                    }
+                }, "RtspSenderThread")
+                senderThread.start()
+
                 while (isRunning.get() && !socket.isClosed) {
                     val requestLine = reader.readLine() ?: break
                     if (requestLine.isEmpty()) continue
+
+                    val tokens = requestLine.split(" ")
+                    if (tokens.size < 2) continue
+
+                    val method = tokens[0].uppercase()
+
+                    // HTTP GET /status endpoint on port 8554
+                    if (method == "GET") {
+                        val path = tokens.getOrNull(1) ?: "/"
+                        if (path.startsWith("/status") || path == "/") {
+                            val jsonPayload = telemetryProvider?.invoke() ?: "{\"status\":\"ok\"}"
+                            val resp = "HTTP/1.1 200 OK\r\n" +
+                                    "Content-Type: application/json\r\n" +
+                                    "Access-Control-Allow-Origin: *\r\n" +
+                                    "Content-Length: ${jsonPayload.toByteArray(Charsets.UTF_8).size}\r\n" +
+                                    "Connection: close\r\n\r\n" +
+                                    jsonPayload
+                            sendResponseDirect(resp)
+                            Log.i(TAG, "Served HTTP /status JSON telemetry to ${socket.inetAddress.hostAddress}")
+                            break
+                        }
+                    }
 
                     var cSeq = "1"
                     val headers = mutableMapOf<String, String>()
@@ -191,10 +234,7 @@ class SimpleRtspServer(
 
                     headers["cseq"]?.let { cSeq = it }
 
-                    val tokens = requestLine.split(" ")
-                    if (tokens.size < 2) continue
-
-                    when (tokens[0].uppercase()) {
+                    when (method) {
                         "OPTIONS" -> handleOptions(cSeq)
                         "DESCRIBE" -> handleDescribe(cSeq)
                         "SETUP" -> handleSetup(cSeq)
@@ -206,13 +246,15 @@ class SimpleRtspServer(
                     }
                 }
             } catch (e: Exception) {
-                Log.d(TAG, "Client disconnected: ${e.message}")
+                Log.d(TAG, "Client session ended (${socket.inetAddress.hostAddress}): ${e.message}")
             } finally {
+                isSessionActive = false
+                senderThread?.interrupt()
                 close()
             }
         }
 
-        private fun sendResponse(response: String) {
+        private fun sendResponseDirect(response: String) {
             try {
                 output?.write(response.toByteArray(Charsets.UTF_8))
                 output?.flush()
@@ -225,7 +267,7 @@ class SimpleRtspServer(
             val resp = "RTSP/1.0 200 OK\r\n" +
                     "CSeq: $cSeq\r\n" +
                     "Public: OPTIONS, DESCRIBE, SETUP, TEARDOWN, PLAY\r\n\r\n"
-            sendResponse(resp)
+            sendResponseDirect(resp)
         }
 
         private fun handleDescribe(cSeq: String) {
@@ -256,7 +298,7 @@ class SimpleRtspServer(
                     "Content-Type: application/sdp\r\n" +
                     "Content-Length: ${sdp.toByteArray(Charsets.UTF_8).size}\r\n\r\n" +
                     sdp
-            sendResponse(resp)
+            sendResponseDirect(resp)
         }
 
         private fun handleSetup(cSeq: String) {
@@ -264,7 +306,7 @@ class SimpleRtspServer(
                     "CSeq: $cSeq\r\n" +
                     "Transport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n" +
                     "Session: 12345678\r\n\r\n"
-            sendResponse(resp)
+            sendResponseDirect(resp)
         }
 
         private fun handlePlay(cSeq: String) {
@@ -272,7 +314,7 @@ class SimpleRtspServer(
                     "CSeq: $cSeq\r\n" +
                     "Session: 12345678\r\n" +
                     "Range: ntp=0.000-\r\n\r\n"
-            sendResponse(resp)
+            sendResponseDirect(resp)
             isStreaming = true
             Log.i(TAG, "Client active and playing RTSP audio stream ($codecKey)")
         }
@@ -280,23 +322,25 @@ class SimpleRtspServer(
         private fun handleTeardown(cSeq: String) {
             val resp = "RTSP/1.0 200 OK\r\n" +
                     "CSeq: $cSeq\r\n\r\n"
-            sendResponse(resp)
+            sendResponseDirect(resp)
             close()
         }
 
         fun sendInterleavedFrame(header: ByteArray, payload: ByteArray) {
-            try {
-                synchronized(this) {
-                    output?.write(header)
-                    output?.write(payload)
-                    output?.flush()
-                }
-            } catch (_: Exception) {
-                close()
+            if (!isStreaming || !isSessionActive) return
+            val combined = ByteArray(header.size + payload.size)
+            System.arraycopy(header, 0, combined, 0, header.size)
+            System.arraycopy(payload, 0, combined, header.size, payload.size)
+
+            // Non-blocking queue offer: drop oldest frame if client queue fills up
+            if (!frameQueue.offer(combined)) {
+                frameQueue.poll()
+                frameQueue.offer(combined)
             }
         }
 
         fun close() {
+            isSessionActive = false
             isStreaming = false
             clients.remove(this)
             try { socket.close() } catch (_: Exception) {}

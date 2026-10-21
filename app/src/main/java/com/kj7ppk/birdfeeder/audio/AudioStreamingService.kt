@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.media.*
@@ -11,15 +12,19 @@ import android.media.audiofx.AcousticEchoCanceler
 import android.media.audiofx.AutomaticGainControl
 import android.media.audiofx.NoiseSuppressor
 import android.net.*
+import android.net.wifi.WifiManager
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.os.BatteryManager
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import com.kj7ppk.birdfeeder.MainActivity
 import com.kj7ppk.birdfeeder.R
 import com.kj7ppk.birdfeeder.data.SettingsManager
+import com.kj7ppk.birdfeeder.ui.components.availableGainOptions
+import com.kj7ppk.birdfeeder.ui.components.getMicDisplayName
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -69,6 +74,7 @@ class AudioStreamingService : Service() {
     private var mediaCodec: MediaCodec? = null
     private var totalSampleCount = 0L
     private val levelHistory = mutableListOf<Float>()
+    private var serviceStartTime = System.currentTimeMillis()
 
     companion object {
         private const val TAG = "AudioStreamingService"
@@ -185,6 +191,59 @@ class AudioStreamingService : Service() {
         _rtspUrl.value = getRtspUrl()
     }
 
+    @Suppress("DEPRECATION")
+    private fun buildTelemetryJson(): String {
+        var batteryPct = -1
+        var tempC = -1f
+        try {
+            val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            if (batteryIntent != null) {
+                val level = batteryIntent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                val scale = batteryIntent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                if (level >= 0 && scale > 0) {
+                    batteryPct = (level * 100) / scale
+                }
+                val tempTenths = batteryIntent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1)
+                if (tempTenths > 0) {
+                    tempC = tempTenths / 10f
+                }
+            }
+        } catch (_: Exception) {}
+
+        var rssi = -127
+        try {
+            @Suppress("DEPRECATION")
+            val wifiManager = applicationContext.getSystemService(WIFI_SERVICE) as? WifiManager
+            val info = wifiManager?.connectionInfo
+            if (info != null) {
+                rssi = info.rssi
+            }
+        } catch (_: Exception) {}
+
+        val codecTitle = when (selectedAudioCodec) {
+            SettingsManager.CODEC_AAC_128 -> "AAC-LC (128 kbps)"
+            SettingsManager.CODEC_AAC_96 -> "AAC-LC (96 kbps)"
+            else -> "Uncompressed PCM (768 kbps)"
+        }
+
+        val gainText = availableGainOptions.find { abs(it.multiplier - gain) < 0.05f }?.label ?: "${(gain * 100).toInt()}%"
+        val micName = getMicDisplayName(preferredDevice, getSystemService(AUDIO_SERVICE) as? AudioManager)
+        val uptimeSec = (System.currentTimeMillis() - serviceStartTime) / 1000L
+
+        return "{" +
+                "\"version\":\"1.2.1\"," +
+                "\"streaming\":${isRunning.get()}," +
+                "\"codec\":\"$codecTitle\"," +
+                "\"mode\":\"${_audioSourceMode.value}\"," +
+                "\"gain\":\"$gainText\"," +
+                "\"mic\":\"$micName\"," +
+                "\"battery_pct\":$batteryPct," +
+                "\"temp_c\":$tempC," +
+                "\"wifi_rssi\":$rssi," +
+                "\"uptime_sec\":$uptimeSec" +
+                "}"
+    }
+
     private fun pauseStreamingForNoNetwork() {
         synchronized(this) {
             if (!isRunning.get()) return
@@ -223,6 +282,7 @@ class AudioStreamingService : Service() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        serviceStartTime = System.currentTimeMillis()
         gain = SettingsManager(this).audioGain.value
         createNotificationChannel()
         updateEngineStatus()
@@ -272,7 +332,7 @@ class AudioStreamingService : Service() {
 
             // Restart RTSP server
             rtspServer?.stop()
-            rtspServer = SimpleRtspServer(streamingPort, selectedAudioCodec)
+            rtspServer = SimpleRtspServer(streamingPort, selectedAudioCodec) { buildTelemetryJson() }
             rtspServer?.start()
 
             // Re-init AAC codec if AAC
@@ -401,7 +461,7 @@ class AudioStreamingService : Service() {
             var outputIndex = codec.dequeueOutputBuffer(bufferInfo, 0L)
             while ((outputIndex >= 0) && isRunning.get()) {
                 val outputBuffer = codec.getOutputBuffer(outputIndex)
-                if ((outputBuffer != null) && ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) && (bufferInfo.size > 0)) {
+                if (outputBuffer != null && (bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0 && bufferInfo.size > 0) {
                     val aacData = ByteArray(bufferInfo.size)
                     outputBuffer.position(bufferInfo.offset)
                     outputBuffer.get(aacData, 0, bufferInfo.size)
@@ -436,7 +496,7 @@ class AudioStreamingService : Service() {
         }
 
         // Initialize Simple RTSP Server
-        rtspServer = SimpleRtspServer(streamingPort, selectedAudioCodec)
+        rtspServer = SimpleRtspServer(streamingPort, selectedAudioCodec) { buildTelemetryJson() }
         rtspServer?.start()
 
         updateRtspUrl()
@@ -471,97 +531,112 @@ class AudioStreamingService : Service() {
     }
 
     private fun captureAndStream() {
-        val records = mutableListOf<AudioRecord>()
-        
-        val sourcesToTry = listOf(
-            selectedAudioSource,
-            MediaRecorder.AudioSource.MIC,
-            MediaRecorder.AudioSource.DEFAULT,
-        ).distinct()
+        while (isRunning.get()) {
+            val records = mutableListOf<AudioRecord>()
+            
+            val sourcesToTry = listOf(
+                selectedAudioSource,
+                MediaRecorder.AudioSource.MIC,
+                MediaRecorder.AudioSource.DEFAULT,
+            ).distinct()
 
-        for (source in sourcesToTry) {
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) break
-            try {
-                val minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
-                val record = AudioRecord.Builder()
-                    .setAudioSource(source)
-                    .setAudioFormat(
-                        AudioFormat.Builder()
-                            .setEncoding(AUDIO_FORMAT)
-                            .setSampleRate(SAMPLE_RATE)
-                            .setChannelMask(CHANNEL_CONFIG)
-                            .build(),
-                    )
-                    .setBufferSizeInBytes(max(minBufferSize * 2, 8192))
-                    .build()
-                
-                if (record.state == AudioRecord.STATE_INITIALIZED) {
-                    if (preferredDevice != null) {
-                        record.preferredDevice = preferredDevice
-                    }
-                    record.startRecording()
-                    if (record.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                        disableAudioEffects(record.audioSessionId)
-                        records.add(record)
-                        Log.d(TAG, "Started recording with source $source on device: ${preferredDevice?.productName ?: "Default"}")
-                        break
+            for (source in sourcesToTry) {
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) break
+                try {
+                    val minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
+                    val record = AudioRecord.Builder()
+                        .setAudioSource(source)
+                        .setAudioFormat(
+                            AudioFormat.Builder()
+                                .setEncoding(AUDIO_FORMAT)
+                                .setSampleRate(SAMPLE_RATE)
+                                .setChannelMask(CHANNEL_CONFIG)
+                                .build(),
+                        )
+                        .setBufferSizeInBytes(max(minBufferSize * 2, 8192))
+                        .build()
+                    
+                    if (record.state == AudioRecord.STATE_INITIALIZED) {
+                        if (preferredDevice != null) {
+                            record.preferredDevice = preferredDevice
+                        }
+                        record.startRecording()
+                        if (record.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                            disableAudioEffects(record.audioSessionId)
+                            records.add(record)
+                            Log.d(TAG, "Started recording with source $source on device: ${preferredDevice?.productName ?: "Default"}")
+                            break
+                        } else {
+                            record.release()
+                        }
                     } else {
                         record.release()
                     }
-                } else {
-                    record.release()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to start AudioRecord with source $source", e)
                 }
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to start AudioRecord with source $source", e)
             }
-        }
-        
-        if (records.isEmpty()) {
-            Log.e(TAG, "No active AudioRecord initialized")
-            isRunning.set(false)
-            _isStreaming.value = false
-            stopSelf()
-            return
-        }
+            
+            if (records.isEmpty()) {
+                Log.e(TAG, "No active AudioRecord initialized")
+                isRunning.set(false)
+                _isStreaming.value = false
+                stopSelf()
+                return
+            }
 
-        // 1024 PCM samples per frame
-        val frameSamples = 1024
-        val shortBuffer = ShortArray(frameSamples)
+            // 1024 PCM samples per frame (~21.33 ms per frame @ 48kHz)
+            val frameSamples = 1024
+            val shortBuffer = ShortArray(frameSamples)
+            var zeroSampleFrames = 0
+            val maxZeroSampleFrames = 700 // ~15 seconds of 100% zero-sample flatline silence
 
-        while (isRunning.get()) {
-            val record = records[0]
-            val readCount = record.read(shortBuffer, 0, frameSamples)
-            if (readCount <= 0) {
-                Log.w(TAG, "AudioRecord read returned $readCount")
-                try { Thread.sleep(5) } catch (_: InterruptedException) {}
-                continue
+            while (isRunning.get()) {
+                val record = records[0]
+                val readCount = record.read(shortBuffer, 0, frameSamples)
+                if (readCount <= 0) {
+                    Log.w(TAG, "AudioRecord read returned $readCount")
+                    try { Thread.sleep(5) } catch (_: InterruptedException) {}
+                    continue
+                }
+                
+                var maxAmplitude = 0f
+                for (j in 0 until readCount) {
+                    val sampleWithGain = shortBuffer[j] * gain
+                    val clampedSample = max(Short.MIN_VALUE.toFloat(), min(Short.MAX_VALUE.toFloat(), sampleWithGain)).toInt().toShort()
+                    shortBuffer[j] = clampedSample
+                    maxAmplitude = max(maxAmplitude, abs(clampedSample.toFloat()))
+                }
+
+                // Zero-Sample ADC Watchdog Check
+                if (maxAmplitude == 0f) {
+                    zeroSampleFrames++
+                    if (zeroSampleFrames >= maxZeroSampleFrames) {
+                        Log.w(TAG, "Silent ADC / Zero-Sample freeze detected (15s dead silence). Restarting AudioRecord...")
+                        break // Breaks inner loop to re-initialize AudioRecord
+                    }
+                } else {
+                    zeroSampleFrames = 0
+                }
+                
+                // Update visualizer StateFlow
+                val normalizedLevel = min(1.0f, maxAmplitude / Short.MAX_VALUE.toFloat())
+                updateAudioLevels(normalizedLevel)
+                
+                val server = rtspServer ?: continue
+                if (selectedAudioCodec == SettingsManager.CODEC_PCM_768) {
+                    server.sendPcmAudio(shortBuffer, readCount)
+                } else {
+                    encodeAndSendAac(shortBuffer, readCount, server)
+                }
             }
             
-            var maxAmplitude = 0f
-            for (j in 0 until readCount) {
-                val sampleWithGain = shortBuffer[j] * gain
-                val clampedSample = max(Short.MIN_VALUE.toFloat(), min(Short.MAX_VALUE.toFloat(), sampleWithGain)).toInt().toShort()
-                shortBuffer[j] = clampedSample
-                maxAmplitude = max(maxAmplitude, abs(clampedSample.toFloat()))
+            for (record in records) {
+                try {
+                    record.stop()
+                    record.release()
+                } catch (_: Exception) {}
             }
-            
-            // Update visualizer StateFlow
-            val normalizedLevel = min(1.0f, maxAmplitude / Short.MAX_VALUE.toFloat())
-            updateAudioLevels(normalizedLevel)
-            
-            val server = rtspServer ?: continue
-            if (selectedAudioCodec == SettingsManager.CODEC_PCM_768) {
-                server.sendPcmAudio(shortBuffer, readCount)
-            } else {
-                encodeAndSendAac(shortBuffer, readCount, server)
-            }
-        }
-        
-        for (record in records) {
-            try {
-                record.stop()
-                record.release()
-            } catch (_: Exception) {}
         }
 
         stopAacCodec()
