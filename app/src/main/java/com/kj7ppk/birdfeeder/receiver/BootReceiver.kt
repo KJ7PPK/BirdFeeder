@@ -3,6 +3,7 @@ package com.kj7ppk.birdfeeder.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import com.kj7ppk.birdfeeder.MainActivity
 import com.kj7ppk.birdfeeder.audio.AudioStreamingService
 import com.kj7ppk.birdfeeder.data.SettingsManager
@@ -16,11 +17,15 @@ class BootReceiver : BroadcastReceiver() {
         ) {
             val settings = SettingsManager(context)
             if (settings.isStreamingEnabled.value) {
+                AudioStreamingService.currentGain = settings.audioGain.value
+                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                val savedMic = audioManager?.let { settings.findSavedMicrophone(it) }
+
                 // Start RTSP foreground audio streaming service
                 AudioStreamingService.start(
                     context = context,
                     port = 8554,
-                    device = null,
+                    device = savedMic,
                     audioSource = settings.audioSource.value,
                     audioCodec = settings.audioCodec.value,
                 )

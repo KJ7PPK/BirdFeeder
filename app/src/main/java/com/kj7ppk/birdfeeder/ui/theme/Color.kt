@@ -2,25 +2,20 @@ package com.kj7ppk.birdfeeder.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Nature-inspired Palette
-val ForestGreen = Color(0xFF2D5A27)
-val SkyBlue = Color(0xFF87CEEB)
-val EarthyBrown = Color(0xFF8B4513)
-val SoftYellow = Color(0xFFFFFACD)
-
-// Theme Colors
-val PrimaryGreen = ForestGreen
-val SecondaryBlue = SkyBlue
-val TertiaryBrown = EarthyBrown
+// BirdFeeder Brand Palette (Matching Bird Logo)
+val BirdFeederBlue = Color(0xFF0288D1)       // Primary Logo Blue
+val LightBirdBlue = Color(0xFF00B0FF)        // Secondary Accent Light Blue
+val DarkBirdBlue = Color(0xFF01579B)         // Deep Accent Blue
+val SoftBlueContainer = Color(0xFFE1F5FE)    // Soft Blue Container
 
 // Light Theme
-val LightPrimary = PrimaryGreen
+val LightPrimary = BirdFeederBlue
 val LightOnPrimary = Color.White
-val LightPrimaryContainer = Color(0xFFD0E8D0)
-val LightOnPrimaryContainer = Color(0xFF0D1F0D)
+val LightPrimaryContainer = SoftBlueContainer
+val LightOnPrimaryContainer = DarkBirdBlue
 
 // Dark Theme
-val DarkPrimary = Color(0xFF98D191)
-val DarkOnPrimary = Color(0xFF00390A)
-val DarkPrimaryContainer = Color(0xFF145214)
-val DarkOnPrimaryContainer = Color(0xFFB3EDAB)
+val DarkPrimary = Color(0xFF81D4FA)
+val DarkOnPrimary = Color(0xFF00344D)
+val DarkPrimaryContainer = Color(0xFF004D70)
+val DarkOnPrimaryContainer = Color(0xFFE0F7FA)

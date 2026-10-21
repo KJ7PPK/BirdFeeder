@@ -41,7 +41,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _rtspUrl = MutableStateFlow("")
     val rtspUrl: StateFlow<String> = _rtspUrl.asStateFlow()
 
-    private val _gain = MutableStateFlow(AudioStreamingService.currentGain)
+    private val _gain = MutableStateFlow(settings.audioGain.value)
     val gain: StateFlow<Float> = _gain.asStateFlow()
 
     private val _selectedMic = MutableStateFlow<AudioDeviceInfo?>(null)
@@ -83,7 +83,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     init {
+        AudioStreamingService.currentGain = settings.audioGain.value
         updateAvailableMics()
+        _selectedMic.value = settings.findSavedMicrophone(audioManager)
         updateSystemSettingsStatus(getApplication())
         try {
             audioManager.registerAudioDeviceCallback(audioDeviceCallback, null)
@@ -155,10 +157,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         _availableMics.value = listOf(null) + physicalMics
 
-        val currentSelected = _selectedMic.value
-        if ((currentSelected != null) && physicalMics.none { it.id == currentSelected.id }) {
-            setSelectedMic(null)
-        }
+        // Restore or validate selected microphone
+        val savedMic = settings.findSavedMicrophone(audioManager)
+        _selectedMic.value = savedMic
     }
 
     private fun getLocalIpAddress(): String? {
@@ -211,29 +212,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setSelectedAudioSource(source: Int) {
         settings.setAudioSource(source)
         if (_isStreaming.value) {
-            toggleStreaming(false)
-            toggleStreaming(true)
+            toggleStreaming(enabled = false)
+            toggleStreaming(enabled = true)
         }
     }
 
     fun setSelectedAudioCodec(codec: String) {
         settings.setAudioCodec(codec)
         if (_isStreaming.value) {
-            toggleStreaming(false)
-            toggleStreaming(true)
+            toggleStreaming(enabled = false)
+            toggleStreaming(enabled = true)
         }
     }
 
     fun setGain(value: Float) {
         _gain.value = value
+        settings.setAudioGain(value)
         AudioStreamingService.currentGain = value
     }
 
     fun setSelectedMic(device: AudioDeviceInfo?) {
         _selectedMic.value = device
+        settings.setSelectedMic(device)
         if (_isStreaming.value) {
-            toggleStreaming(false)
-            toggleStreaming(true)
+            toggleStreaming(enabled = false)
+            toggleStreaming(enabled = true)
         }
     }
 
