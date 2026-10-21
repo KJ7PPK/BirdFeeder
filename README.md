@@ -111,6 +111,4 @@ Android resists staying connected to Wi-Fi networks that do not provide WAN/inte
 * **[FFmpeg](https://ffmpeg.org/):** Multimedia framework used for RTSP playback testing and stream verification.
 * **[go2rtc](https://github.com/AlexxIT/go2rtc):** High-performance streaming engine used for RTSP/WebRTC ingestion.
 * **[Universal Android Debloater (UAD-NG)](https://github.com/0x10f8/Universal-Android-Debloater-Next-Generation):** Essential open-source debloating tool for Android hardware preparation.
-* **[Jetpack Compose](https://developer.android.com/jetpack/compose):** Modern Android UI toolkit by Google.
-* **[Material Design Icons](https://fonts.google.com/icons):** FlutterDash bird icon motif.
 * **[RootEncoder / RTSP-Server](https://github.com/pedroSG94/RTSP-Server):** Initial RTSP prototyping & network connection interfaces by PedroSG94.
