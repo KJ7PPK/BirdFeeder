@@ -20,8 +20,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.*
+import android.media.MediaRecorder
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalUriHandler
+import com.kj7ppk.birdfeeder.data.SettingsManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -55,21 +58,22 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(viewModel: MainViewModel = viewModel()) {
+fun MainScreen(viewModel: MainViewModel? = if (LocalInspectionMode.current) null else viewModel()) {
     val context = LocalContext.current
-    val isStreaming by viewModel.isStreaming.collectAsState()
-    val audioLevels by viewModel.audioLevels.collectAsState()
-    val rtspUrl by viewModel.rtspUrl.collectAsState()
-    val gain by viewModel.gain.collectAsState()
-    val selectedMic by viewModel.selectedMic.collectAsState()
-    val availableMics by viewModel.availableMics.collectAsState()
-    val selectedAudioSource by viewModel.selectedAudioSource.collectAsState()
-    val selectedAudioCodec by viewModel.selectedAudioCodec.collectAsState()
-    val isHomeLauncher by viewModel.isHomeLauncher.collectAsState()
-    val isBatteryExempt by viewModel.isBatteryExempt.collectAsState()
+    val isStreaming by viewModel?.isStreaming?.collectAsState() ?: remember { mutableStateOf(false) }
+    val audioLevels by viewModel?.audioLevels?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
+    val rtspUrl by viewModel?.rtspUrl?.collectAsState() ?: remember { mutableStateOf("") }
+    val gain by viewModel?.gain?.collectAsState() ?: remember { mutableFloatStateOf(1.0f) }
+    val selectedMic by viewModel?.selectedMic?.collectAsState() ?: remember { mutableStateOf(null) }
+    val availableMics by viewModel?.availableMics?.collectAsState() ?: remember { mutableStateOf(listOf(null)) }
+    val selectedAudioSource by viewModel?.selectedAudioSource?.collectAsState() ?: remember { mutableIntStateOf(MediaRecorder.AudioSource.MIC) }
+    val selectedAudioCodec by viewModel?.selectedAudioCodec?.collectAsState() ?: remember { mutableStateOf(SettingsManager.CODEC_AAC_128) }
+    val isHomeLauncher by viewModel?.isHomeLauncher?.collectAsState() ?: remember { mutableStateOf(false) }
+    val isBatteryExempt by viewModel?.isBatteryExempt?.collectAsState() ?: remember { mutableStateOf(false) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner, viewModel) {
+        if (viewModel == null) return@DisposableEffect onDispose {}
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 viewModel.updateSystemSettingsStatus(context)
@@ -85,11 +89,12 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { permissions ->
         if (permissions.values.all { it }) {
-            viewModel.updateAvailableMics()
+            viewModel?.updateAvailableMics()
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(viewModel) {
+        if (viewModel == null) return@LaunchedEffect
         val permissionsList = mutableListOf(Manifest.permission.RECORD_AUDIO)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissionsList.add(Manifest.permission.POST_NOTIFICATIONS)
@@ -174,20 +179,20 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         ControlsSection(
                             isStreaming = isStreaming,
-                            onStreamingChange = { viewModel.toggleStreaming(it, context) },
+                            onStreamingChange = { viewModel?.toggleStreaming(it, context) },
                             selectedAudioSource = selectedAudioSource,
-                            onAudioSourceChange = { viewModel.setSelectedAudioSource(it) },
+                            onAudioSourceChange = { viewModel?.setSelectedAudioSource(it) },
                             selectedAudioCodec = selectedAudioCodec,
-                            onAudioCodecChange = { viewModel.setSelectedAudioCodec(it) },
+                            onAudioCodecChange = { viewModel?.setSelectedAudioCodec(it) },
                             micSource = selectedMic,
                             availableMics = availableMics,
-                            onMicChange = { viewModel.setSelectedMic(it) },
+                            onMicChange = { viewModel?.setSelectedMic(it) },
                             gain = gain,
-                            onGainChange = { viewModel.setGain(it) },
+                            onGainChange = { viewModel?.setGain(it) },
                             isHomeLauncher = isHomeLauncher,
-                            onOpenHomeSettings = { viewModel.openHomeSettings(context) },
+                            onOpenHomeSettings = { viewModel?.openHomeSettings(context) },
                             isBatteryExempt = isBatteryExempt,
-                            onRequestBatteryExemption = { viewModel.requestBatteryOptimizationExemption(context) },
+                            onRequestBatteryExemption = { viewModel?.requestBatteryOptimizationExemption(context) },
                         )
                     }
                 }
@@ -284,7 +289,7 @@ fun CombinedStatusWaveformBox(
 fun FooterCredits() {
     val uriHandler = LocalUriHandler.current
     val annotatedString = buildAnnotatedString {
-        append("BirdFeeder v1.2, built for ")
+        append("BirdFeeder v1.2.1, built for ")
 
         pushStringAnnotation(tag = "URL", annotation = "https://github.com/tphakala/birdnet-go")
         withStyle(
